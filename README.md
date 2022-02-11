@@ -19,28 +19,27 @@ Thankfully, NVIDIA recently released [NanoVDB](https://developer.nvidia.com/nano
 
 **We add support for both these libraries in Unreal, giving artists access to a new range of possibilities**. Once imported, every VDB grids are converted to NanoVDB for better performance.
  
-The **goal** isn't to provide a reference viewer for VDB grids (although we do offer some interesting options) but to **foster an experimental environment to play with volumes**. We want this plugin to be **as generic as possible** to allow a maximum of customization and tinkering, whether you are a (technical) artist or a programmer.
+The **goal** isn't to provide a reference viewer for VDB grids (although we do offer some interesting options) but to **foster an experimental environment to play with sparse volumes**. We want this plugin to be **as generic as possible** to allow a maximum of customization and tinkering, whether you are a (technical) artist or a programmer.
 
 We provide direct support for (simplistic) realtime rendering with **Unreal materials**, with the option to implement your very own raymarching HLSL code in the material editor. If you are a programmer and don't care about Unreal materials but still don't want to reinvent the wheel, we also provide a more **traditional and easy-to-modify path to render volumes** (ideal to implement the latest rendering and/or denoising paper). We even hacked our way into the **pathtracer** to allow for offline rendering experimentations. If you want to sample a volume to create an impressive **Niagara system**, that is also possible. 
 
-Disclaimer: This is my very first project using Unreal. As you may know, it is not easy customizing Unreal's renderer without modifying the source code, so I've tried my best in the allotted time I had but I have no doubt that there are better ways to implement what I did. If you are an Unreal expert, I would be happy to hear your feedback/suggestions/comments by sending an email at tlambert.cg@gmail.com.
 
 ## Features
 - Import OpenVDB files
 - Import NanoVDB files
-- Once imported, every grid is converted to NanoVDB
-- Grids can be visualized in the viewport
-- Grids can be converted to Texture3Ds
+- Convert every VDB file to NanoVDB, once imported 
+- Viewport visualization 
 - Unreal volumetric materials support
 - Ambient light and first directional light support
-- Grids can be sampled within custom Niagara modules
+- Niagara modules can sample VDB Grids
+- Option to convert Grids to Texture3Ds
 - Pseudo pathtracer integration, for offline experiments
 - More traditional graphics integration (no materials) for faster iterations
 
 ## Installation
-Download the repo, and copy it in your project (or Engine) Plugins folder.
+Download the repo and copy it in your project `Plugins` folder. Unreal will need to be recompiled.
 
-Unreal will need to be recompiled.
+If you are not able to compile Unreal, you can alternatively use the precompiled binaries packages in [Releases](https://github.com/eidosmontreal/unreal-vdb/releases).
 
 ---
 ## First steps
@@ -111,7 +110,7 @@ I would be delighted to see what the community comes up with, so please post you
 
 ### The Unreal way (aka artist-friendly) 
 You can create your own `Materials` based on the provided examples. 
-We only support `Volume materials` (which forces you to use the *Additive* blend mode, but we ignore it), and `Unlit` and `Default Lit` shading models. Any other models have undefined behavior while rendering VDB volumes.
+We only support `Volume materials` (which forces you to use the *Additive* blend mode, but we ignore it), with `Unlit` and `Default Lit` shading models. Any other models have undefined behavior while rendering VDB volumes.
 
 ![VolumeMat](Resources/Emissive_rgb_0_1.png)
 ![VolumeMat](Resources/material_example.png)
@@ -168,11 +167,10 @@ Regarding VDB features:
 * We only support *FogVolumes* and *LevelSets* (aka *Distance Fields*)
 * We only support float grids (for now)
 * No CPU support
-* No support for sequences (yet, coming soon)
 
 We only support Windows 64 bit plateform, and Unreal 5.
 
-Disclaimer: This is my first project using Unreal and OpenVDB/NanoVDB, so please keep this in mind that this started as an educational project. Unreal is a complex engine and I'm sure there are other and smarter ways to integrate such volumetric features. Feel free to [contact me](https://twitter.com/LambertTibo) if you have some valuable feedback !   
+Disclaimer: This is my first project using Unreal and OpenVDB/NanoVDB, this plugin started as an educational project to learn the engine. Unreal is definitely complex and I'm sure there are other and smarter ways to integrate such volumetric features. Feel free to [contact me](https://twitter.com/LambertTibo) if you have some valuable feedback !
 
 ---
 ## Dependencies
