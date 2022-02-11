@@ -1,0 +1,48 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "Sparse Volumetrics, using OpenVDB and NanoVDB",
+	"Description": "Load and render GPU-friendly volumetric sparse data using OpenVDB and NanoVDB",
+	"Category": "Rendering",
+	"CreatedBy": "Eidos-Montreal & Eidos-Sherbrooke",
+	"CreatedByURL": "https://www.eidossherbrooke.com/en/",
+	"DocsURL": "https://github.com/eidosmontreal/unreal-vdb",
+	"MarketplaceURL": "",
+	"SupportURL": "https://github.com/eidosmontreal/unreal-vdb",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": true,
+	"Installed": false,
+	"SupportedTargetPlatforms": [
+		"Win64"
+	],
+	"Modules": [
+		{
+			"Name": "VolumeImporter",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "VolumeSequencer",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "VolumeStreamer",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit"
+		},
+		{
+			"Name": "VolumeRuntime",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "Niagara",
+			"Enabled": true
+		}
+	]
+}

@@ -23,16 +23,17 @@ The **goal** isn't to provide a reference viewer for VDB grids (although we do o
 
 We provide direct support for (simplistic) realtime rendering with **Unreal materials**, with the option to implement your very own raymarching HLSL code in the material editor. If you are a programmer and don't care about Unreal materials but still don't want to reinvent the wheel, we also provide a more **traditional and easy-to-modify path to render volumes** (ideal to implement the latest rendering and/or denoising paper). We even hacked our way into the **pathtracer** to allow for offline rendering experimentations. If you want to sample a volume to create an impressive **Niagara system**, that is also possible. 
 
+Disclaimer: This is my very first project using Unreal. As you may know, it is not easy customizing Unreal's renderer without modifying the source code, so I've tried my best in the allotted time I had but I have no doubt that there are better ways to implement what I did. If you are an Unreal expert, I would be happy to hear your feedback/suggestions/comments by sending an email at tlambert.cg@gmail.com.
 
 ## Features
 - Import OpenVDB files
 - Import NanoVDB files
-- Convert every VDB file to NanoVDB, once imported 
-- Viewport visualization 
+- Once imported, every grid is converted to NanoVDB
+- Grids can be visualized in the viewport
+- Grids can be converted to Texture3Ds
 - Unreal volumetric materials support
 - Ambient light and first directional light support
-- Niagara modules can sample VDB Grids
-- Option to convert Grids to Texture3Ds
+- Grids can be sampled within custom Niagara modules
 - Pseudo pathtracer integration, for offline experiments
 - More traditional graphics integration (no materials) for faster iterations
 
@@ -75,6 +76,20 @@ This choice can be modified at any time with an asset reimport.
 | ----------- | ----------- |
 | ![VdbActor](Resources/dragon_f32.png) | ![VdbActor](Resources/dragon_f4.png) |
 
+## Sequences / Animations
+
+You can also import a sequence of VDB files, if the plugin can detect a continuous file sequence.
+
+ ![VdbActor](Resources/import_sequence.gif)
+ 
+ Sequences can be previewed in the editor, and played in-game depending on the selected options.
+ 
+ ![VdbActor](Resources/sequence_play.gif)
+ 
+ We also added support for the Sequencer, allowing precise animation control from users.
+ 
+ ![VdbActor](Resources/Sequencer.gif)
+ 
 
 ## Advanced examples
 
@@ -130,7 +145,7 @@ We call it the **Research** mode. It is accessible through the `VdbResearchActor
 
 It is using a self-contained and lightweight code-path to render `VdbVolumes` on screen. Iterations are much faster, recompiling shaders only takes a couple seconds (compared to minutes with Unreal shaders) and you need not worry about classes like `VertexFactory`, `MeshMaterialShader`, `MeshPassProcessor`, `SceneViewExtensions` etc. anymore. You can also optionally add a denoiser as a rendering post-process.
 
-This **Research** mode is also compatible with [Unreal's *path tracer*](https://docs.unrealengine.com/4.26/en-US/RenderingAndGraphics/RayTracing/PathTracer/), allowing for interesting offline possibilities (graphics research, architecture render etc.).   
+This **Research** mode is also compatible with [Unreal's *path tracer*](https://docs.unrealengine.com/4.26/en-US/RenderingAndGraphics/RayTracing/PathTracer/), allowing for interesting offline possibilities (graphics research, architecture renders etc.).   
 
 ![VdbActor](Resources/cloud_pathtrace.gif)
 ![DisneyCloud](Resources/research_01.png) 
@@ -156,6 +171,8 @@ Regarding VDB features:
 * No support for sequences (yet, coming soon)
 
 We only support Windows 64 bit plateform, and Unreal 5.
+
+Disclaimer: This is my first project using Unreal and OpenVDB/NanoVDB, so please keep this in mind that this started as an educational project. Unreal is a complex engine and I'm sure there are other and smarter ways to integrate such volumetric features. Feel free to [contact me](https://twitter.com/LambertTibo) if you have some valuable feedback !   
 
 ---
 ## Dependencies

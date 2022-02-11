@@ -1,0 +1,69 @@
+// Copyright 2022 Eidos-Montreal / Eidos-Sherbrooke
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http ://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "/Engine/Private/Common.ush"
+
+Texture2D<float4>	InputTexture;
+RWTexture2D<float4> OutputTexture;
+
+#define KERNEL_HALF_SIZE 2
+#define KERNEL_FULL_SIZE (KERNEL_HALF_SIZE * 2 + 1)
+
+// Gaussian kernel https://dev.theomader.com/gaussian-kernel-calculator/
+static float GaussianWeights[KERNEL_FULL_SIZE * KERNEL_FULL_SIZE] = {
+	0.003765,	0.015019,	0.023792,	0.015019,	0.003765,
+	0.015019,	0.059912,	0.094907,	0.059912,	0.015019,
+	0.023792,	0.094907,	0.150342,	0.094907,	0.023792,
+	0.015019,	0.059912,	0.094907,	0.059912,	0.015019,
+	0.003765,	0.015019,	0.023792,	0.015019,	0.003765,
+};
+
+[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	uint2 LaunchIndex = DispatchThreadId.xy + View.ViewRectMin.xy;
+
+	if (LaunchIndex.x >= View.ViewSizeAndInvSize.x || LaunchIndex.y >= View.ViewSizeAndInvSize.y)
+		return;
+
+	float4 Result = 0;
+
+#if METHOD == 1 // GAUSSIAN BLUR
+	int2 Pixel = int2(LaunchIndex);
+	for (int y = -KERNEL_HALF_SIZE; y <= KERNEL_HALF_SIZE; ++y)
+	{
+		for (int x = -KERNEL_HALF_SIZE; x <= KERNEL_HALF_SIZE; ++x)
+		{
+			int LinearIdx = (x + KERNEL_HALF_SIZE) + (y + KERNEL_HALF_SIZE) * KERNEL_FULL_SIZE;
+			int2 Offset = int2(x, y);
+			int2 NeighborPixel = max(min(Pixel + Offset, View.ViewSizeAndInvSize.xy), int2(0, 0));
+			Result += InputTexture[NeighborPixel] * GaussianWeights[LinearIdx];
+		}
+	}
+#elif METHOD == 2 // BOX BLUR
+	int2 Pixel = int2(LaunchIndex);
+	for (int y = -KERNEL_HALF_SIZE; y <= KERNEL_HALF_SIZE; ++y)
+	{
+		for (int x = -KERNEL_HALF_SIZE; x <= KERNEL_HALF_SIZE; ++x)
+		{
+			int2 Offset = int2(x, y);
+			int2 NeighborPixel = max(min(Pixel + Offset, View.ViewSizeAndInvSize.xy), int2(0, 0));
+			Result += InputTexture[NeighborPixel];
+		}
+	}
+	Result /= KERNEL_FULL_SIZE * KERNEL_FULL_SIZE;
+#endif
+
+	OutputTexture[LaunchIndex] = Result;
+}

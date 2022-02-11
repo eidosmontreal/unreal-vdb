@@ -1,0 +1,112 @@
+// Copyright 2022 Eidos-Montreal / Eidos-Sherbrooke
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http ://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#pragma once
+
+#define PNANOVDB_HLSL
+#include "/Plugin/VdbVolume/nanovdb/32.3/PNanoVDB.ush"
+
+// We only support a single grid per VdbVolume, which allows some nice simplifications.
+static pnanovdb_readaccessor_t VdbAccessor;
+
+int GetGridType(pnanovdb_buf_t buf)
+{
+	pnanovdb_address_t address; address.byte_offset = 0;
+	pnanovdb_grid_handle_t grid; grid.address = address;
+	return pnanovdb_grid_get_grid_type(buf, grid);
+}
+
+// Only supports F32 uncompressed input grids
+float ReadValue(pnanovdb_buf_t buf, PNANOVDB_INOUT(pnanovdb_readaccessor_t) acc, PNANOVDB_IN(pnanovdb_coord_t) ijk)
+{
+	pnanovdb_address_t address = pnanovdb_readaccessor_get_value_address(PNANOVDB_GRID_TYPE_FLOAT, buf, acc, PNANOVDB_REF(ijk));
+	return pnanovdb_read_float(buf, address);
+}
+
+// Supports all types of grids (albeit a bit slower)
+float ReadCompressedValue(pnanovdb_buf_t buf, PNANOVDB_INOUT(pnanovdb_readaccessor_t) acc, pnanovdb_uint32_t grid_type, PNANOVDB_IN(pnanovdb_coord_t) ijk)
+{
+	pnanovdb_uint32_t level;
+	pnanovdb_address_t address = pnanovdb_readaccessor_get_value_address_and_level(grid_type, buf, acc, PNANOVDB_REF(ijk), PNANOVDB_REF(level));
+	return pnanovdb_root_read_float_typed(grid_type, buf, address, ijk, level);
+}
+
+// Init NanoVDB volume, prepare accessors and other usefull stuff
+void InitVolume(pnanovdb_buf_t grid_buf, out int grid_type)
+{
+	pnanovdb_address_t address; address.byte_offset = 0;
+	pnanovdb_grid_handle_t grid; grid.address = address;
+
+	pnanovdb_tree_handle_t tree = pnanovdb_grid_get_tree(grid_buf, grid);
+	pnanovdb_root_handle_t root = pnanovdb_tree_get_root(grid_buf, tree);
+
+	// Out variables:
+	pnanovdb_readaccessor_init(VdbAccessor, root);
+	grid_type = int(pnanovdb_grid_get_grid_type(grid_buf, grid));
+}
+
+pnanovdb_vec3_t LocalToIndexPos(pnanovdb_buf_t grid_buf, in pnanovdb_vec3_t LocalPos)
+{
+	pnanovdb_address_t address; address.byte_offset = 0;
+	pnanovdb_grid_handle_t grid; grid.address = address;
+
+	return pnanovdb_grid_world_to_indexf(grid_buf, grid, LocalPos);
+}
+
+pnanovdb_vec3_t LocalToIndexDir(pnanovdb_buf_t grid_buf, in pnanovdb_vec3_t LocalDir)
+{
+	pnanovdb_address_t address; address.byte_offset = 0;
+	pnanovdb_grid_handle_t grid; grid.address = address;
+
+	return pnanovdb_grid_world_to_index_dirf(grid_buf, grid, LocalDir);
+}
+
+pnanovdb_vec3_t IndexToLocalPos(pnanovdb_buf_t grid_buf, in pnanovdb_vec3_t IndexPos)
+{
+	pnanovdb_address_t address; address.byte_offset = 0;
+	pnanovdb_grid_handle_t grid; grid.address = address;
+
+	return pnanovdb_grid_index_to_worldf(grid_buf, grid, IndexPos);
+}
+
+pnanovdb_vec3_t IndexToLocalDir(pnanovdb_buf_t grid_buf, in pnanovdb_vec3_t IndexDir)
+{
+	pnanovdb_address_t address; address.byte_offset = 0;
+	pnanovdb_grid_handle_t grid; grid.address = address;
+
+	return pnanovdb_grid_index_to_world_dirf(grid_buf, grid, IndexDir);
+}
+
+pnanovdb_coord_t IndexToIjk(pnanovdb_vec3_t IndexPos)
+{
+	return pnanovdb_hdda_pos_to_ijk(IndexPos);
+}
+
+pnanovdb_vec3_t ZeroCrossingNormal(pnanovdb_uint32_t grid_type, pnanovdb_buf_t grid_buf, pnanovdb_readaccessor_t acc, float v0, pnanovdb_coord_t ijk)
+{
+	pnanovdb_vec3_t iNormal = -v0;
+
+	ijk.x += 1;
+	iNormal.x += ReadCompressedValue(grid_buf, acc, grid_type, ijk);
+
+	ijk.x -= 1;
+	ijk.y += 1;
+	iNormal.y += ReadCompressedValue(grid_buf, acc, grid_type, ijk);
+
+	ijk.y -= 1;
+	ijk.z += 1;
+	iNormal.z += ReadCompressedValue(grid_buf, acc, grid_type, ijk);
+
+	return normalize(iNormal);
+}

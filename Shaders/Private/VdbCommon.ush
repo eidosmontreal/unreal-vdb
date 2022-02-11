@@ -1,0 +1,318 @@
+// Copyright 2022 Eidos-Montreal / Eidos-Sherbrooke
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http ://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef D_VDB_VOLUMETRIC_COMMON
+#define D_VDB_VOLUMETRIC_COMMON
+
+#define PNANOVDB_HLSL
+#if SHADER_VERSION_MAJOR == 32 && SHADER_VERSION_MINOR == 3
+	#include "/Plugin/VdbVolume/nanovdb/32.3/PNanoVDB.ush"
+#else
+	#error Unrecognized NanoVDB version number
+#endif
+
+#include "/Engine/Private/PathTracing/Utilities/PathTracingRandomSequence.ush"
+#include "/Engine/Private/MonteCarlo.ush"
+
+struct Segment
+{
+	pnanovdb_vec3_t Start;
+	pnanovdb_vec3_t End;
+};
+
+struct VdbRay
+{
+	pnanovdb_vec3_t Origin;
+	pnanovdb_vec3_t Direction;
+	float TMin;
+	float TMax;
+};
+
+struct HeterogenousMedium
+{
+	float densityScale;
+	float densityMin;
+	float densityMax;
+	float anisotropy;
+	float albedo;
+};
+
+// From PathTracingPinholeCamera.ush
+float2 PinholeRandomSample(inout RandomSequence RandSequence)
+{
+	float2 AAJitter = RandomSequence_GenerateSample2D(RandSequence);
+
+	// importance sample a gaussian kernel with variable sigma
+	float3 Disk = ConcentricDiskSamplingHelper(AAJitter);
+	float FilterWidth = 2.0; // TODO: user defined FilterWidth (cf PathTracingData.FilterWidth)
+	float Sigma = FilterWidth / 6.0; // user-provided width covers +/-3*Sigma
+	float R = min(Disk.z, 0.99999994); // avoid log(0) when R=1
+	AAJitter = 0.5 + Sigma * Disk.xy * sqrt(-2.0 * log(1.0 - R * R));
+
+	return AAJitter;
+}
+
+//-----------------------------------------------------------------------------------------------------------
+// NanoVDB Buffers
+//-----------------------------------------------------------------------------------------------------------
+
+float ReadValue(pnanovdb_coord_t ijk, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, in out pnanovdb_readaccessor_t acc)
+{
+	pnanovdb_uint32_t level;
+	pnanovdb_address_t address = pnanovdb_readaccessor_get_value_address_and_level(grid_type, buf, acc, ijk, level);
+	return pnanovdb_root_read_float_typed(grid_type, buf, address, ijk, level);
+}
+
+float ReadValue(pnanovdb_vec3_t pos, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
+{
+	pnanovdb_coord_t ijk = pnanovdb_hdda_pos_to_ijk(pos);
+	return ReadValue(ijk, buf, grid_type, acc);
+}
+
+// Faster, but float32 only
+float ReadValueFloat(pnanovdb_coord_t ijk, pnanovdb_buf_t buf, pnanovdb_readaccessor_t acc)
+{
+	pnanovdb_address_t address = pnanovdb_readaccessor_get_value_address(PNANOVDB_GRID_TYPE_FLOAT, buf, acc, ijk);
+	return pnanovdb_read_float(buf, address);
+}
+
+float ReadValueFloat(pnanovdb_vec3_t pos, pnanovdb_buf_t buf, pnanovdb_readaccessor_t acc)
+{
+	pnanovdb_coord_t ijk = pnanovdb_hdda_pos_to_ijk(pos);
+	return ReadValueFloat(ijk, buf, acc);
+}
+
+float ReadValue(float Step, VdbRay ray, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
+{
+	pnanovdb_vec3_t pos = pnanovdb_hdda_ray_start(ray.Origin, Step, ray.Direction);
+	return ReadValue(pos, buf, grid_type, acc);
+}
+
+bool CheckBounds(inout VdbRay Ray, pnanovdb_vec3_t bbox_min, pnanovdb_vec3_t bbox_max)
+{
+	return pnanovdb_hdda_ray_clip(bbox_min, bbox_max, Ray.Origin, Ray.TMin, Ray.Direction, Ray.TMax);
+}
+
+float3 WorldToIndexDirection(float3 WorldDirection, MaterialFloat4x4 WorldToLocal, pnanovdb_buf_t buf, pnanovdb_grid_handle_t grid)
+{
+	float3 Dir = mul(float4(WorldDirection, 0.0), WorldToLocal).xyz;
+	return normalize(pnanovdb_grid_world_to_index_dirf(buf, grid, Dir));
+}
+
+float3 WorldToIndexPosition(float3 WorldPos, MaterialFloat4x4 WorldToLocal, pnanovdb_buf_t buf, pnanovdb_grid_handle_t grid)
+{
+	float3 Pos = mul(float4(WorldPos, 1.0), WorldToLocal).xyz;
+	return pnanovdb_grid_world_to_indexf(buf, grid, Pos);
+}
+
+float3 IndexToWorldDirection(float3 IndexDirection, MaterialFloat4x4 LocalToWorld, pnanovdb_buf_t buf, pnanovdb_grid_handle_t grid)
+{
+	float3 LocalDir = pnanovdb_grid_index_to_world_dirf(buf, grid, IndexDirection);
+	float3 WorldDir = mul(float4(LocalDir, 0.0), LocalToWorld).xyz;
+	return normalize(WorldDir);
+}
+
+float3 IndexToWorldPosition(float3 IndexPos, MaterialFloat4x4 LocalToWorld, pnanovdb_buf_t buf, pnanovdb_grid_handle_t grid)
+{
+	float3 LocalPos = pnanovdb_grid_index_to_worldf(buf, grid, IndexPos);
+	return mul(float4(LocalPos, 1.0), LocalToWorld).xyz;
+}
+
+Segment getRayFromPixelCoord(uint2 ScreenPosition, uint2 ScreenDimensions, float2 Jitter, float DeviceZ)
+{
+	float2 ScreenPositionNorm = (ScreenPosition + 0.5f + Jitter) / float2(ScreenDimensions);
+	float2 ClipPosition = (ScreenPositionNorm - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
+
+	DeviceZ = max(DeviceZ, 0.0001); // either no Z value, or too far to even consider
+	float4 Near = mul(float4(ClipPosition, 1, 1), View.ClipToWorld); // near (world space)
+	float4 Far = mul(float4(ClipPosition, DeviceZ, 1), View.ClipToWorld); // scene gbuffer (world space)
+
+	Segment Seg;
+	Seg.Start = Near.xyz / Near.w;
+	Seg.End = Far.xyz / Far.w;
+	return Seg;
+}
+
+VdbRay PrepareRayFromPixel(pnanovdb_buf_t grid_buf, pnanovdb_grid_handle_t grid, uint2 ScreenPosition, uint2 ScreenDimension, float2 Jitter, float DeviceZ, MaterialFloat4x4 WorldToLocal)
+{
+	// World space
+	Segment Seg = getRayFromPixelCoord(ScreenPosition.xy, ScreenDimension.xy, Jitter, DeviceZ);
+	
+	// Index space
+	float3 Origin = WorldToIndexPosition(Seg.Start, WorldToLocal, grid_buf, grid);
+	float3 End = WorldToIndexPosition(Seg.End, WorldToLocal, grid_buf, grid);
+
+	float Dist = length(End - Origin);
+
+	VdbRay Ray;
+	Ray.Origin = Origin;
+	Ray.Direction = (End - Origin) / Dist;
+	Ray.TMin = 0.0001f;
+	Ray.TMax = Dist;
+
+	return Ray;
+}
+
+//-----------------------------------------------------------------------------------------------------------
+// Level Set specific
+//-----------------------------------------------------------------------------------------------------------
+
+struct ZeroCrossingHit
+{
+	float t_hit;
+	float v0;
+	pnanovdb_coord_t ijk_hit;
+};
+
+pnanovdb_vec3_t ZeroCrossingNormal(pnanovdb_uint32_t grid_type, pnanovdb_buf_t grid_buf, pnanovdb_readaccessor_t acc, in ZeroCrossingHit ZCH)
+{
+	pnanovdb_coord_t ijk = ZCH.ijk_hit;
+	pnanovdb_vec3_t iNormal = -ZCH.v0.xxx;
+
+	ijk.x += 1;
+	iNormal.x += ReadValue(ijk, grid_buf, grid_type, acc);
+
+	ijk.x -= 1;
+	ijk.y += 1;
+	iNormal.y += ReadValue(ijk, grid_buf, grid_type, acc);
+
+	ijk.y -= 1;
+	ijk.z += 1;
+	iNormal.z += ReadValue(ijk, grid_buf, grid_type, acc);
+
+	return normalize(iNormal);
+}
+
+//-----------------------------------------------------------------------------------------------------------
+// Fog Volume specific
+//-----------------------------------------------------------------------------------------------------------
+
+float DeltaTracking(inout VdbRay Ray, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc, HeterogenousMedium medium, inout RandomSequence RandSequence)
+{
+	float densityMaxInv = 1.0f / medium.densityMax;
+	float t = Ray.TMin;
+	pnanovdb_vec3_t pos;
+
+	do {
+		t += -log(RandomSequence_GenerateSample1D(RandSequence)) * densityMaxInv;
+		pos = pnanovdb_hdda_ray_start(Ray.Origin, t, Ray.Direction);
+	} while (t < Ray.TMax && ReadValue(pos, buf, grid_type, acc) * medium.densityScale * densityMaxInv < RandomSequence_GenerateSample1D(RandSequence));
+
+	return t;
+}
+
+pnanovdb_vec3_t sampleHG(float g, float e1, float e2)
+{
+	// phase function.
+	if (g == 0) {
+		// isotropic
+		const float phi = (2.0f * PI) * e1;
+		const float cosTheta = 1.0f - 2.0f * e2;
+		const float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+		return pnanovdb_vec3_t(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+	}
+	else {
+		const float phi = (2.0f * PI) * e2;
+		const float s = 2.0f * e1 - 1.0f;
+		const float denom = max(0.001f, (1.0f + g * s));
+		const float f = (1.0f - g * g) / denom;
+		const float cosTheta = 0.5f * (1.0f / g) * (1.0f + g * g - f * f);
+		const float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+		return pnanovdb_vec3_t(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+	}
+}
+
+pnanovdb_bool_t GetFirstIntersection(
+	pnanovdb_grid_type_t grid_type,
+	pnanovdb_buf_t buf,
+	in out pnanovdb_readaccessor_t acc,
+	in out VdbRay ray,
+	in out float value,
+	HeterogenousMedium medium
+)
+{
+	pnanovdb_vec3_t pos = pnanovdb_hdda_ray_start(ray.Origin, ray.TMin, ray.Direction);
+	pnanovdb_coord_t ijk = pnanovdb_hdda_pos_to_ijk(pos);
+
+	value = ReadValue(ijk, buf, grid_type, acc) * medium.densityScale;
+	if (value > medium.densityMin)
+	{
+		return true;
+	}
+
+	pnanovdb_int32_t dim = pnanovdb_uint32_as_int32(pnanovdb_readaccessor_get_dim(grid_type, buf, acc, ijk));
+
+	pnanovdb_hdda_t hdda;
+	pnanovdb_hdda_init(hdda, ray.Origin, ray.TMin, ray.Direction, ray.TMax, dim);
+
+	while (pnanovdb_hdda_step(hdda))
+	{
+		pnanovdb_vec3_t pos_start = pnanovdb_hdda_ray_start(ray.Origin, hdda.tmin + 1.0001f, ray.Direction);
+		ijk = pnanovdb_hdda_pos_to_ijk(pos_start);
+		dim = pnanovdb_uint32_as_int32(pnanovdb_readaccessor_get_dim(grid_type, buf, acc, ijk));
+		pnanovdb_hdda_update(hdda, ray.Origin, ray.Direction, dim);
+		if (hdda.dim > 1 || !pnanovdb_readaccessor_is_active(grid_type, buf, acc, ijk))
+		{
+			continue;
+		}
+		while (pnanovdb_hdda_step(hdda) && pnanovdb_readaccessor_is_active(grid_type, buf, acc, hdda.voxel))
+		{
+			ijk = hdda.voxel;
+			value = ReadValue(ijk, buf, grid_type, acc) * medium.densityScale;
+			if (value > medium.densityMin)
+			{
+				ray.TMin = hdda.tmin;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+// From NanoVDB samples
+float GetTransmittance(
+	pnanovdb_vec3_t bbox_min,
+	pnanovdb_vec3_t bbox_max,
+	VdbRay ray,
+	pnanovdb_buf_t buf,
+	pnanovdb_uint32_t grid_type,
+	pnanovdb_readaccessor_t acc,
+	HeterogenousMedium medium,
+	float StepMultiplier,
+	in out RandomSequence RandSequence)
+{
+	pnanovdb_bool_t hit = pnanovdb_hdda_ray_clip(bbox_min, bbox_max, ray.Origin, ray.TMin, ray.Direction, ray.TMax);
+	if (!hit)
+		return 1.0f;
+
+	float densityMaxInv = 1.0f / medium.densityMax;
+	float densityMaxInvMultStep = densityMaxInv * StepMultiplier;
+	float transmittance = 1.f;
+	float t = ray.TMin;
+	while (true) 
+	{
+		t += densityMaxInvMultStep * (RandomSequence_GenerateSample1D(RandSequence) + 0.5);
+		if (t >= ray.TMax)
+			break;
+
+		float density = ReadValue(t, ray, buf, grid_type, acc) * medium.densityScale;
+
+		transmittance *= 1.0f - density * densityMaxInv;
+		if (transmittance < 0.4f)
+			return 0.f;
+	}
+	return transmittance;
+}
+
+#endif // D_VDB_VOLUMETRIC_COMMON
