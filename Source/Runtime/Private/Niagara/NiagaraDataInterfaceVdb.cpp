@@ -327,7 +327,7 @@ void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 		OutFunctions.Add(Sig);
 	}
 }
-
+#if WITH_EDITORONLY_DATA
 bool UNiagaraDataInterfaceVdb::GetFunctionHLSL(const FNiagaraDataInterfaceGPUParamInfo& ParamInfo, const FNiagaraDataInterfaceGeneratedFunction& FunctionInfo, int FunctionInstanceIndex, FString& OutHLSL)
 {
 	auto FormatString = [&](const TCHAR* Format)
@@ -520,6 +520,17 @@ void UNiagaraDataInterfaceVdb::GetCommonHLSL(FString& OutHLSL)
 	OutHLSL += TEXT("#include \"/Plugin/VdbVolume/Private/NiagaraDataInterfaceVdb.ush\"\n");
 }
 
+bool UNiagaraDataInterfaceVdb::AppendCompileHash(FNiagaraCompileHashVisitor* InVisitor) const
+{
+	if (!Super::AppendCompileHash(InVisitor))
+		return false;
+
+	FSHAHash Hash = GetShaderFileHash((TEXT("/Plugin/VdbVolume/Private/NiagaraDataInterfaceVdb.ush")), EShaderPlatform::SP_PCD3D_SM5);
+	InVisitor->UpdateString(TEXT("NiagaraDataInterfaceVdbHLSLSource"), Hash.ToString());
+	return true;
+}
+#endif
+
 void UNiagaraDataInterfaceVdb::PushToRenderThreadImpl()
 {
 	FNiagaraDataIntefaceProxyVdb* NDIProxy = GetProxyAs<FNiagaraDataIntefaceProxyVdb>();
@@ -537,16 +548,6 @@ void UNiagaraDataInterfaceVdb::PushToRenderThreadImpl()
 			NDIProxy->IndexMax = IndexMax;
 		}
 	);
-}
-
-bool UNiagaraDataInterfaceVdb::AppendCompileHash(FNiagaraCompileHashVisitor* InVisitor) const
-{
-	if (!Super::AppendCompileHash(InVisitor))
-		return false;
-
-	FSHAHash Hash = GetShaderFileHash((TEXT("/Plugin/VdbVolume/Private/NiagaraDataInterfaceVdb.ush")), EShaderPlatform::SP_PCD3D_SM5);
-	InVisitor->UpdateString(TEXT("NiagaraDataInterfaceVdbHLSLSource"), Hash.ToString());
-	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

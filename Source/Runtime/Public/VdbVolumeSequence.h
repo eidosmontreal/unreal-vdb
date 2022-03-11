@@ -80,7 +80,7 @@ public:
 	virtual bool IsValid() const;
 	virtual const FIntVector& GetIndexMin(uint32 FrameIndex) const;
 	virtual const FIntVector& GetIndexMax(uint32 FrameIndex) const;
-	virtual const FMatrix& GetIndexToLocal(uint32 FrameIndex) const;
+	virtual const FMatrix44f& GetIndexToLocal(uint32 FrameIndex) const;
 	virtual const uint8* GetGridData(uint32 FrameIndex) const { return VolumeRenderInfos[FrameIndex].GetNanoGridHandle().data(); }
 	virtual const nanovdb::GridMetaData* GetMetaData(uint32 FrameIndex) { return VolumeRenderInfos[FrameIndex].GetNanoGridHandle().gridMetaData(); }
 	//~ End UVdbVolumeBase Interface.

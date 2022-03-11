@@ -74,9 +74,9 @@ private:
 
 struct FCubeBatchElementUserData
 {
-	FVector IndexMin;
-	FVector IndexSize;
-	FMatrix IndexToLocal;
+	FVector3f IndexMin;
+	FVector3f IndexSize;
+	FMatrix44f IndexToLocal;
 };
 
 struct FVdbVertexFactoryUserDataWrapper : public FOneFrameResource

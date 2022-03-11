@@ -51,7 +51,6 @@ void FVdbRenderBuffer::ReleaseRHI()
 
 	if (Buffer)
 	{
-		RHIDiscardTransientResource(Buffer);
 		Buffer.SafeRelease();
 	}
 

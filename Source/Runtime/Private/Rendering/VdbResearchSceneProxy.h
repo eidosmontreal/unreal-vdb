@@ -24,9 +24,9 @@ struct FVdbResearchParams
 {
 	FVdbRenderBuffer* VdbDensity;
 	FVdbRenderBuffer* VdbTemperature;
-	FVector IndexMin;
-	FVector IndexSize;
-	FMatrix IndexToLocal;
+	FVector3f IndexMin;
+	FVector3f IndexSize;
+	FMatrix44f IndexToLocal;
 	uint32 MaxRayDepth;
 	uint32 SamplesPerPixel;
 	FLinearColor Color;
@@ -57,7 +57,7 @@ public:
 
 	void ResetVisibility() { VisibleViews.Empty(4); }
 	bool IsVisible(const FSceneView* View) const { return VisibleViews.Find(View) != INDEX_NONE; }
-	void Update(const FMatrix& InIndexToLocal, const FVector& InIndexMin, const FVector& InIndexSize, FVdbRenderBuffer* RenderBuffer, bool IsDensity);
+	void Update(const FMatrix44f& InIndexToLocal, const FVector3f& InIndexMin, const FVector3f& InIndexSize, FVdbRenderBuffer* RenderBuffer, bool IsDensity);
 
 protected:
 	//~ Begin FPrimitiveSceneProxy Interface

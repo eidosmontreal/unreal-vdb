@@ -49,7 +49,7 @@ public:
 	virtual bool IsValid() const PURE_VIRTUAL(UVdbVolumeBase::IsValid, return false;);
 	virtual const FIntVector& GetIndexMin(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetIndexMin, return FIntVector::ZeroValue;);
 	virtual const FIntVector& GetIndexMax(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetIndexMax, return FIntVector::ZeroValue;);
-	virtual const FMatrix& GetIndexToLocal(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetIndexToLocal, return FMatrix::Identity;);
+	virtual const FMatrix44f& GetIndexToLocal(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetIndexToLocal, return FMatrix44f::Identity;);
 
 	virtual const FVolumeRenderInfos* GetRenderInfos(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetRenderInfos, return nullptr;);
 	virtual const uint8* GetGridData(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetGridData, return nullptr;);
@@ -87,7 +87,7 @@ protected:
 	FBox Bounds;
 
 	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = "Properties")
-	FVector VoxelSize;
+	FVector3f VoxelSize;
 
 	UPROPERTY()
 	uint64 MemoryUsage = 0;

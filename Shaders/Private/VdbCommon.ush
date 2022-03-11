@@ -104,26 +104,26 @@ bool CheckBounds(inout VdbRay Ray, pnanovdb_vec3_t bbox_min, pnanovdb_vec3_t bbo
 	return pnanovdb_hdda_ray_clip(bbox_min, bbox_max, Ray.Origin, Ray.TMin, Ray.Direction, Ray.TMax);
 }
 
-float3 WorldToIndexDirection(float3 WorldDirection, MaterialFloat4x4 WorldToLocal, pnanovdb_buf_t buf, pnanovdb_grid_handle_t grid)
+float3 WorldToIndexDirection(float3 WorldDirection, float4x4 WorldToLocal, pnanovdb_buf_t buf, pnanovdb_grid_handle_t grid)
 {
 	float3 Dir = mul(float4(WorldDirection, 0.0), WorldToLocal).xyz;
 	return normalize(pnanovdb_grid_world_to_index_dirf(buf, grid, Dir));
 }
 
-float3 WorldToIndexPosition(float3 WorldPos, MaterialFloat4x4 WorldToLocal, pnanovdb_buf_t buf, pnanovdb_grid_handle_t grid)
+float3 WorldToIndexPosition(float3 WorldPos, float4x4 WorldToLocal, pnanovdb_buf_t buf, pnanovdb_grid_handle_t grid)
 {
 	float3 Pos = mul(float4(WorldPos, 1.0), WorldToLocal).xyz;
 	return pnanovdb_grid_world_to_indexf(buf, grid, Pos);
 }
 
-float3 IndexToWorldDirection(float3 IndexDirection, MaterialFloat4x4 LocalToWorld, pnanovdb_buf_t buf, pnanovdb_grid_handle_t grid)
+float3 IndexToWorldDirection(float3 IndexDirection, float4x4 LocalToWorld, pnanovdb_buf_t buf, pnanovdb_grid_handle_t grid)
 {
 	float3 LocalDir = pnanovdb_grid_index_to_world_dirf(buf, grid, IndexDirection);
 	float3 WorldDir = mul(float4(LocalDir, 0.0), LocalToWorld).xyz;
 	return normalize(WorldDir);
 }
 
-float3 IndexToWorldPosition(float3 IndexPos, MaterialFloat4x4 LocalToWorld, pnanovdb_buf_t buf, pnanovdb_grid_handle_t grid)
+float3 IndexToWorldPosition(float3 IndexPos, float4x4 LocalToWorld, pnanovdb_buf_t buf, pnanovdb_grid_handle_t grid)
 {
 	float3 LocalPos = pnanovdb_grid_index_to_worldf(buf, grid, IndexPos);
 	return mul(float4(LocalPos, 1.0), LocalToWorld).xyz;
@@ -135,8 +135,8 @@ Segment getRayFromPixelCoord(uint2 ScreenPosition, uint2 ScreenDimensions, float
 	float2 ClipPosition = (ScreenPositionNorm - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 
 	DeviceZ = max(DeviceZ, 0.0001); // either no Z value, or too far to even consider
-	float4 Near = mul(float4(ClipPosition, 1, 1), View.ClipToWorld); // near (world space)
-	float4 Far = mul(float4(ClipPosition, DeviceZ, 1), View.ClipToWorld); // scene gbuffer (world space)
+	float4 Near = mul(float4(ClipPosition, 1, 1), View.ClipToRelativeWorld); // near (world space)
+	float4 Far = mul(float4(ClipPosition, DeviceZ, 1), View.ClipToRelativeWorld); // scene gbuffer (world space)
 
 	Segment Seg;
 	Seg.Start = Near.xyz / Near.w;
@@ -144,7 +144,7 @@ Segment getRayFromPixelCoord(uint2 ScreenPosition, uint2 ScreenDimensions, float
 	return Seg;
 }
 
-VdbRay PrepareRayFromPixel(pnanovdb_buf_t grid_buf, pnanovdb_grid_handle_t grid, uint2 ScreenPosition, uint2 ScreenDimension, float2 Jitter, float DeviceZ, MaterialFloat4x4 WorldToLocal)
+VdbRay PrepareRayFromPixel(pnanovdb_buf_t grid_buf, pnanovdb_grid_handle_t grid, uint2 ScreenPosition, uint2 ScreenDimension, float2 Jitter, float DeviceZ, float4x4 WorldToLocal)
 {
 	// World space
 	Segment Seg = getRayFromPixelCoord(ScreenPosition.xy, ScreenDimension.xy, Jitter, DeviceZ);

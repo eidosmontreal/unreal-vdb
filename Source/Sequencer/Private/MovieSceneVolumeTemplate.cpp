@@ -41,7 +41,7 @@ struct FPreAnimatedVolumeTokenProducer : IMovieScenePreAnimatedTokenProducer
 				bInManualTick = TrackHandler->GetManualTick(ActorComponent);
 			}
 
-			virtual void RestoreState(UObject& ObjectToRestore, IMovieScenePlayer& Player)
+			virtual void RestoreState(UObject& ObjectToRestore, const UE::MovieScene::FRestoreStateParams& Params)
 			{
 				TPair<UActorComponent*, FVolumeTrackHandlerBase*> ComponentHandlerPair = TryExtractVolumeComponent(&ObjectToRestore);
 				UActorComponent* ActorComponent = ComponentHandlerPair.Key;

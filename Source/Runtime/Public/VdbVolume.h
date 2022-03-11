@@ -49,7 +49,7 @@ public:
 	virtual bool IsValid() const;
 	virtual const FIntVector& GetIndexMin(uint32 = 0) const { return VolumeFrameInfos.GetIndexMin(); }
 	virtual const FIntVector& GetIndexMax(uint32 = 0) const { return VolumeFrameInfos.GetIndexMax(); }
-	virtual const FMatrix& GetIndexToLocal(uint32 = 0) const { return VolumeFrameInfos.GetIndexToLocal(); }
+	virtual const FMatrix44f& GetIndexToLocal(uint32 = 0) const { return VolumeFrameInfos.GetIndexToLocal(); }
 	virtual const uint8* GetGridData(uint32 = 0) const { return VolumeRenderInfos.GetNanoGridHandle().data(); }
 	virtual const nanovdb::GridMetaData* GetMetaData(uint32 = 0) { return VolumeRenderInfos.GetNanoGridHandle().gridMetaData(); }
 

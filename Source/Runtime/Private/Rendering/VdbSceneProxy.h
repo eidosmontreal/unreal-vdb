@@ -26,18 +26,18 @@ public:
 	FVdbSceneProxy(const UVdbComponent* InComponent);
 	virtual ~FVdbSceneProxy() = default;
 
-	FVector GetIndexMin() const { return IndexMin; }
-	FVector GetIndexSize() const { return IndexSize; }
+	FVector3f GetIndexMin() const { return IndexMin; }
+	FVector3f GetIndexSize() const { return IndexSize; }
 	float GetStepMultiplier() const { return StepMultiplier; }
 	float GetDensityMultiplier() const { return DensityMultiplier; }
-	const FMatrix& GetIndexToLocal() const { return IndexToLocal; }
+	const FMatrix44f& GetIndexToLocal() const { return IndexToLocal; }
 	class UMaterialInterface* GetMaterial() const { return Material; }
 	const class FVdbRenderBuffer* GetRenderResource() const { return RenderBuffer; }
 	
 	bool IsLevelSet() const { return LevelSet; }
 	void ResetVisibility() { VisibleViews.Empty(4); }
 	bool IsVisible(const FSceneView* View) const { return VisibleViews.Find(View) != INDEX_NONE; }
-	void Update(const FMatrix& IndexToLocal, const FVector& IndexMin, const FVector& IndexSize, FVdbRenderBuffer* RenderBuffer);
+	void Update(const FMatrix44f& IndexToLocal, const FVector3f& IndexMin, const FVector3f& IndexSize, FVdbRenderBuffer* RenderBuffer);
 
 protected:
 	//~ Begin FPrimitiveSceneProxy Interface
@@ -62,9 +62,9 @@ private:
 	float StepMultiplier;
 
 	FVdbRenderBuffer* RenderBuffer;
-	FVector IndexMin;
-	FVector IndexSize;
-	FMatrix IndexToLocal;
+	FVector3f IndexMin;
+	FVector3f IndexSize;
+	FMatrix44f IndexToLocal;
 
 	mutable TArray<const FSceneView*> VisibleViews;
 };

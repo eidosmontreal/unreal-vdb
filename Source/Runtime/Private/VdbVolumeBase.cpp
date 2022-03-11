@@ -51,7 +51,7 @@ void UVdbVolumeBase::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) co
 void UVdbVolumeBase::UpdateFromMetadata(const nanovdb::GridMetaData* MetaData)
 {
 	nanovdb::Vec3R VoxSize = MetaData->voxelSize();
-	VoxelSize = FVector(VoxSize[0], VoxSize[1], VoxSize[2]);
+	VoxelSize = FVector3f(VoxSize[0], VoxSize[1], VoxSize[2]);
 
 	if (MetaData->isLevelSet())
 	{

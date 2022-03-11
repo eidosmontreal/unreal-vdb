@@ -63,15 +63,15 @@ void FVolumeFrameInfos::UpdateFrame(nanovdb::GridHandle<>& NanoGridHandle)
 	const nanovdb::GridMetaData* MetaData = NanoGridHandle.gridMetaData();
 	
 	const nanovdb::Map& vdbMap = MetaData->map();
-	IndexToLocal = FMatrix(
-		FVector(vdbMap.mMatF[0], vdbMap.mMatF[3], vdbMap.mMatF[6]),
-		FVector(vdbMap.mMatF[1], vdbMap.mMatF[4], vdbMap.mMatF[7]),
-		FVector(vdbMap.mMatF[2], vdbMap.mMatF[5], vdbMap.mMatF[8]),
-		FVector(vdbMap.mVecF[0], vdbMap.mVecF[1], vdbMap.mVecF[2]));
+	IndexToLocal = FMatrix44f(
+		FVector3f(vdbMap.mMatF[0], vdbMap.mMatF[3], vdbMap.mMatF[6]),
+		FVector3f(vdbMap.mMatF[1], vdbMap.mMatF[4], vdbMap.mMatF[7]),
+		FVector3f(vdbMap.mMatF[2], vdbMap.mMatF[5], vdbMap.mMatF[8]),
+		FVector3f(vdbMap.mVecF[0], vdbMap.mVecF[1], vdbMap.mVecF[2]));
 
 	const nanovdb::BBox<nanovdb::Vec3R>& WorldBBox = MetaData->worldBBox();
-	FVector Min(WorldBBox.min()[0], WorldBBox.min()[1], WorldBBox.min()[2]);
-	FVector Max(WorldBBox.max()[0], WorldBBox.max()[1], WorldBBox.max()[2]);
+	FVector3f Min(WorldBBox.min()[0], WorldBBox.min()[1], WorldBBox.min()[2]);
+	FVector3f Max(WorldBBox.max()[0], WorldBBox.max()[1], WorldBBox.max()[2]);
 	Bounds = FBox(Min, Max);
 
 	const nanovdb::BBox<nanovdb::Vec3R>& IndexBBox = MetaData->indexBBox();
@@ -84,7 +84,7 @@ void FVolumeFrameInfos::UpdateFrame(nanovdb::GridHandle<>& NanoGridHandle)
 
 	if (NumberActiveVoxels == 0)
 	{
-		// Special case to handle empty volumes. Create arbitrary smallest volume.
+		// Special to handle empty volumes. Create arbitrary smallest volume.
 		Bounds = FBox(FVector(0.0, 0.0, 0.0), FVector(1.0, 1.0, 1.0));
 		IndexMin = FIntVector(0, 0, 0);
 		IndexMax = FIntVector(1, 1, 1);
@@ -98,11 +98,11 @@ bool FVolumeRenderInfos::HasNanoGridData() const
 	return NanoGridHandle.gridMetaData() && NanoGridHandle.gridMetaData()->isValid();
 }
 
-void FVolumeRenderInfos::Update(const FMatrix& InIndexToLocal, const FIntVector& InIndexMin, const FIntVector& InIndexMax, const TRefCountPtr<FVdbRenderBuffer>& InRenderResource)
+void FVolumeRenderInfos::Update(const FMatrix44f& InIndexToLocal, const FIntVector& InIndexMin, const FIntVector& InIndexMax, const TRefCountPtr<FVdbRenderBuffer>& InRenderResource)
 {
 	IndexToLocal = InIndexToLocal;
-	IndexMin = FVector(InIndexMin);
-	IndexSize = FVector(InIndexMax - InIndexMin);
+	IndexMin = FVector3f(InIndexMin);
+	IndexSize = FVector3f(InIndexMax - InIndexMin);
 	RenderResource = InRenderResource;
 }
 

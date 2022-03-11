@@ -24,13 +24,13 @@ struct FVdbRay
 	GENERATED_USTRUCT_BODY();
 
 	UPROPERTY(EditAnywhere, Category = "Ray")
-	FVector Origin;
+	FVector3f Origin;
 
 	UPROPERTY(EditAnywhere, Category = "Ray")
 	float Tmin = 0.0001;
 
 	UPROPERTY(EditAnywhere, Category = "Ray")
-	FVector Direction;
+	FVector3f Direction;
 
 	UPROPERTY(EditAnywhere, Category = "Ray")
 	float Tmax = FLT_MAX;
@@ -80,11 +80,13 @@ public:
 	virtual bool CanExecuteOnTarget(ENiagaraSimTarget Target) const override { return Target == ENiagaraSimTarget::GPUComputeSim; }
 	virtual bool RequiresDepthBuffer() const override { return false; }
 
+#if WITH_EDITORONLY_DATA
 	virtual void GetCommonHLSL(FString& OutHLSL) override;
 	virtual bool GetFunctionHLSL(const FNiagaraDataInterfaceGPUParamInfo& ParamInfo, const FNiagaraDataInterfaceGeneratedFunction& FunctionInfo, int FunctionInstanceIndex, FString& OutHLSL) override;
 	virtual void GetParameterDefinitionHLSL(const FNiagaraDataInterfaceGPUParamInfo& ParamInfo, FString& OutHLSL) override;
-	
 	virtual bool AppendCompileHash(FNiagaraCompileHashVisitor* InVisitor) const override;
+#endif
+
 
 protected:
 	virtual bool CopyToInternal(UNiagaraDataInterface* Destination) const override;

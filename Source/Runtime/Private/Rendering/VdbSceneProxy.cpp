@@ -112,7 +112,7 @@ void FVdbSceneProxy::DestroyRenderThreadResources()
 	VdbRenderExtension->RemoveVdbProxy(this);
 }
 
-void FVdbSceneProxy::Update(const FMatrix& InIndexToLocal, const FVector& InIndexMin, const FVector& InIndexSize, FVdbRenderBuffer* InRenderBuffer)
+void FVdbSceneProxy::Update(const FMatrix44f& InIndexToLocal, const FVector3f& InIndexMin, const FVector3f& InIndexSize, FVdbRenderBuffer* InRenderBuffer)
 {
 	IndexToLocal = InIndexToLocal;
 	IndexMin = InIndexMin;

@@ -267,6 +267,7 @@ void FVdbRendering::CreateMeshBatch(FMeshBatch& MeshBatch, const FVdbSceneProxy*
 	MeshBatch.bUseForDepthPass = false;
 
 	FMeshBatchElement& BatchElement = MeshBatch.Elements[0];
+	BatchElement.PrimitiveUniformBuffer = PrimitiveProxy->GetUniformBuffer();
 	BatchElement.IndexBuffer = &VertexBuffer->IndexBuffer;
 	BatchElement.FirstIndex = 0;
 	BatchElement.MinVertexIndex = 0;
@@ -324,7 +325,7 @@ void FVdbRendering::Render_RenderThread(FPostOpaqueRenderParameters& Parameters)
 			IsLevelSet ? RDG_EVENT_NAME("Vdb LevelSet Rendering") : RDG_EVENT_NAME("Vdb FogVolume Rendering"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[this, &InView = *View, ViewportRect = Parameters.ViewportRect, Proxies](FRHICommandList& RHICmdList)
+			[this, &InView = *View, ViewportRect = Parameters.ViewportRect, Proxies](FRHICommandListImmediate& RHICmdList)
 		{
 			RHICmdList.SetViewport(ViewportRect.Min.X, ViewportRect.Min.Y, 0.0f, ViewportRect.Max.X, ViewportRect.Max.Y, 1.0f);
 			RHICmdList.SetScissorRect(false, 0, 0, 0, 0);

@@ -130,7 +130,7 @@ FRDGTextureRef FVdbResearchSceneProxy::GetOrCreateRenderTarget(FRDGBuilder& Grap
 	return GraphBuilder.RegisterExternalTexture(OffscreenRenderTarget[EvenFrame]);
 }
 
-void FVdbResearchSceneProxy::Update(const FMatrix& InIndexToLocal, const FVector& InIndexMin, const FVector& InIndexSize, FVdbRenderBuffer* RenderBuffer, bool IsDensity)
+void FVdbResearchSceneProxy::Update(const FMatrix44f& InIndexToLocal, const FVector3f& InIndexMin, const FVector3f& InIndexSize, FVdbRenderBuffer* RenderBuffer, bool IsDensity)
 {
 	if (IsDensity)
 	{

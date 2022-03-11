@@ -77,7 +77,7 @@ public:
 
 	const FIntVector& GetIndexMin() const { return IndexMin; }
 	const FIntVector& GetIndexMax() const { return IndexMax; }
-	const FMatrix& GetIndexToLocal() const { return IndexToLocal; }
+	const FMatrix44f& GetIndexToLocal() const { return IndexToLocal; }
 	const FBox& GetBounds() const{ return Bounds; }
 	uint64 GetMemoryUsage() const { return MemoryUsage; }
 
@@ -89,7 +89,7 @@ private:
 #endif
 
 	UPROPERTY(VisibleAnywhere, Category = "Properties")
-	FMatrix IndexToLocal = FMatrix::Identity;
+	FMatrix44f IndexToLocal = FMatrix44f::Identity;
 
 	UPROPERTY(VisibleAnywhere, Category = "Properties")
 	FBox Bounds;
@@ -118,18 +118,18 @@ public:
 
 	const nanovdb::GridHandle<nanovdb::HostBuffer>& GetNanoGridHandle() const { return NanoGridHandle; }
 	nanovdb::GridHandle<nanovdb::HostBuffer>& GetNanoGridHandle() { return NanoGridHandle; }
-	const FVector& GetIndexMin() const { return IndexMin; }
-	const FVector& GetIndexSize() const { return IndexSize; }
-	const FMatrix& GetIndexToLocal() const { return IndexToLocal; }
+	const FVector3f& GetIndexMin() const { return IndexMin; }
+	const FVector3f& GetIndexSize() const { return IndexSize; }
+	const FMatrix44f& GetIndexToLocal() const { return IndexToLocal; }
 
 	bool HasNanoGridData() const;	
 
-	void Update(const FMatrix& InIndexToLocal, const FIntVector& InIndexMin, const FIntVector& InIndexMax, const TRefCountPtr<FVdbRenderBuffer>& RenderResource);
+	void Update(const FMatrix44f& InIndexToLocal, const FIntVector& InIndexMin, const FIntVector& InIndexMax, const TRefCountPtr<FVdbRenderBuffer>& RenderResource);
 
 protected:	
-	FMatrix IndexToLocal;
-	FVector IndexMin;
-	FVector IndexSize;
+	FMatrix44f IndexToLocal;
+	FVector3f IndexMin;
+	FVector3f IndexSize;
 	TRefCountPtr<FVdbRenderBuffer> RenderResource;
 
 	// this keeps buffers in memory

@@ -47,19 +47,19 @@ void FVdbResearchRendering::InitBuffers()
 		TResourceArray<FFilterVertex, VERTEXBUFFER_ALIGNMENT> Vertices;
 		Vertices.SetNumUninitialized(8);
 
-		FVector BboxMin(0, 0, 0);
-		FVector BboxMax(1, 1, 1);
+		FVector3f BboxMin(0, 0, 0);
+		FVector3f BboxMax(1, 1, 1);
 
 		// Front face
-		Vertices[0].Position = FVector4(BboxMin.X, BboxMin.Y, BboxMin.Z, 1.f);	Vertices[0].UV = FVector2D(0.f, 0.f);
-		Vertices[1].Position = FVector4(BboxMax.X, BboxMin.Y, BboxMin.Z, 1.f);	Vertices[1].UV = FVector2D(1.f, 0.f);
-		Vertices[2].Position = FVector4(BboxMin.X, BboxMax.Y, BboxMin.Z, 1.f);	Vertices[2].UV = FVector2D(0.f, 1.f);
-		Vertices[3].Position = FVector4(BboxMax.X, BboxMax.Y, BboxMin.Z, 1.f);	Vertices[3].UV = FVector2D(1.f, 1.f);
-		// Back face
-		Vertices[4].Position = FVector4(BboxMin.X, BboxMin.Y, BboxMax.Z, 1.f);	Vertices[0].UV = FVector2D(1.f, 1.f);
-		Vertices[5].Position = FVector4(BboxMax.X, BboxMin.Y, BboxMax.Z, 1.f);	Vertices[1].UV = FVector2D(1.f, 0.f);
-		Vertices[6].Position = FVector4(BboxMin.X, BboxMax.Y, BboxMax.Z, 1.f);	Vertices[2].UV = FVector2D(0.f, 1.f);
-		Vertices[7].Position = FVector4(BboxMax.X, BboxMax.Y, BboxMax.Z, 1.f);	Vertices[3].UV = FVector2D(0.f, 0.f);
+		Vertices[0].Position = FVector4f(BboxMin.X, BboxMin.Y, BboxMin.Z, 1.f);	Vertices[0].UV = FVector2f(0.f, 0.f);
+		Vertices[1].Position = FVector4f(BboxMax.X, BboxMin.Y, BboxMin.Z, 1.f);	Vertices[1].UV = FVector2f(1.f, 0.f);
+		Vertices[2].Position = FVector4f(BboxMin.X, BboxMax.Y, BboxMin.Z, 1.f);	Vertices[2].UV = FVector2f(0.f, 1.f);
+		Vertices[3].Position = FVector4f(BboxMax.X, BboxMax.Y, BboxMin.Z, 1.f);	Vertices[3].UV = FVector2f(1.f, 1.f);
+		// Back face		   FVector4f
+		Vertices[4].Position = FVector4f(BboxMin.X, BboxMin.Y, BboxMax.Z, 1.f);	Vertices[0].UV = FVector2f(1.f, 1.f);
+		Vertices[5].Position = FVector4f(BboxMax.X, BboxMin.Y, BboxMax.Z, 1.f);	Vertices[1].UV = FVector2f(1.f, 0.f);
+		Vertices[6].Position = FVector4f(BboxMin.X, BboxMax.Y, BboxMax.Z, 1.f);	Vertices[2].UV = FVector2f(0.f, 1.f);
+		Vertices[7].Position = FVector4f(BboxMax.X, BboxMax.Y, BboxMax.Z, 1.f);	Vertices[3].UV = FVector2f(0.f, 0.f);
 
 		FRHIResourceCreateInfo CreateInfoVB(TEXT("VdbResearchUnitCubeVB"), &Vertices);
 		VertexBufferRHI = RHICreateVertexBuffer(Vertices.GetResourceDataSize(), BUF_Static, CreateInfoVB);
@@ -174,7 +174,7 @@ void FVdbResearchRendering::ReleaseDelegate()
 	}
 }
 
-TRDGUniformBufferRef<FVdbResearchShaderParams> CreateVdbUniformBuffer(FRDGBuilder& GraphBuilder, const FVdbResearchSceneProxy* Proxy)
+TRDGUniformBufferRef<FVdbResearchShaderParams> CreateVdbUniformBuffer(FRDGBuilder& GraphBuilder, const FVdbResearchSceneProxy* Proxy, bool UsePathTracing)
 {
 	FVdbResearchShaderParams* UniformParameters = GraphBuilder.AllocParameters<FVdbResearchShaderParams>();
 
@@ -186,9 +186,9 @@ TRDGUniformBufferRef<FVdbResearchShaderParams> CreateVdbUniformBuffer(FRDGBuilde
 	UniformParameters->VolumeScale = Params.IndexSize;
 	UniformParameters->VolumeTranslation = Params.IndexMin;
 	UniformParameters->VolumeToLocal = Params.IndexToLocal;
-	UniformParameters->LocalToWorld = Proxy->GetLocalToWorld();
-	UniformParameters->WorldToLocal = Proxy->GetLocalToWorld().Inverse();
-	UniformParameters->SamplesPerPixel = Params.SamplesPerPixel;
+	UniformParameters->LocalToWorld = FMatrix44f(Proxy->GetLocalToWorld());
+	UniformParameters->WorldToLocal = FMatrix44f(Proxy->GetLocalToWorld().Inverse());
+	UniformParameters->SamplesPerPixel = UsePathTracing ? 1 : Params.SamplesPerPixel;
 	UniformParameters->MaxRayDepth = Params.MaxRayDepth;
 	// Material Params
 	auto LinearColorToVector = [](const FLinearColor& Col) { return FVector(Col.R, Col.G, Col.B); };
@@ -230,7 +230,7 @@ void FVdbResearchRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 	TexDesc.ClearValue = FClearValueBinding(FLinearColor::Transparent);
 
 	uint32 NumAccumulations = 0;
-	const bool UsePathTracing = View->RayTracingRenderMode == ERayTracingRenderMode::PathTracing;
+	const bool UsePathTracing = View->Family->EngineShowFlags.PathTracing;
 
 #if RHI_RAYTRACING
 	if (UsePathTracing)
@@ -241,7 +241,7 @@ void FVdbResearchRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 		FSceneViewState* ViewState = ViewInfo->ViewState;
 		if (ViewState)
 		{
-			NumAccumulations = ViewState->PathTracingSPP ? ViewState->PathTracingSPP - 1u : 0u;
+			NumAccumulations = ViewState->GetPathTracingSampleIndex() ? ViewState->GetPathTracingSampleIndex() - 1u : 0u;
 		}
 	}
 #endif
@@ -261,7 +261,7 @@ void FVdbResearchRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 
 		if (NumAccumulations < MaxSPP && Proxy->GetParams().VdbDensity)
 		{
-			TRDGUniformBufferRef<FVdbResearchShaderParams> VdbUniformBuffer = CreateVdbUniformBuffer(GraphBuilder, Proxy);
+			TRDGUniformBufferRef<FVdbResearchShaderParams> VdbUniformBuffer = CreateVdbUniformBuffer(GraphBuilder, Proxy, UsePathTracing);
 
 			FVdbResearchPS::FParameters* ParametersPS = GraphBuilder.AllocParameters<FVdbResearchPS::FParameters>();
 			ParametersPS->View = View->ViewUniformBuffer;
@@ -305,7 +305,7 @@ void FVdbResearchRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 					GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 					GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 					GraphicsPSOInit.PrimitiveType = PT_TriangleList;
-					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit);
+					SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
 
 					SetShaderParameters(RHICmdList, VertexShader, VertexShader.GetVertexShader(), ParametersVS);
 					SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), *ParametersPS);

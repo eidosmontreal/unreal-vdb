@@ -17,20 +17,20 @@
 
 FCubeMeshVertexBuffer::FCubeMeshVertexBuffer()
 {
-	FVector BboxMin(0, 0, 0);
-	FVector BboxMax(1, 1, 1);
+	FVector3f BboxMin(0, 0, 0);
+	FVector3f BboxMax(1, 1, 1);
 
 	TArray<FDynamicMeshVertex> Vertices;
 	// back face
-	Vertices.Add(FDynamicMeshVertex(FVector(BboxMin.X, BboxMin.Y, BboxMin.Z)));
-	Vertices.Add(FDynamicMeshVertex(FVector(BboxMax.X, BboxMin.Y, BboxMin.Z)));
-	Vertices.Add(FDynamicMeshVertex(FVector(BboxMin.X, BboxMax.Y, BboxMin.Z)));
-	Vertices.Add(FDynamicMeshVertex(FVector(BboxMax.X, BboxMax.Y, BboxMin.Z)));
+	Vertices.Add(FDynamicMeshVertex(FVector3f(BboxMin.X, BboxMin.Y, BboxMin.Z)));
+	Vertices.Add(FDynamicMeshVertex(FVector3f(BboxMax.X, BboxMin.Y, BboxMin.Z)));
+	Vertices.Add(FDynamicMeshVertex(FVector3f(BboxMin.X, BboxMax.Y, BboxMin.Z)));
+	Vertices.Add(FDynamicMeshVertex(FVector3f(BboxMax.X, BboxMax.Y, BboxMin.Z)));
 	// front face
-	Vertices.Add(FDynamicMeshVertex(FVector(BboxMin.X, BboxMin.Y, BboxMax.Z)));
-	Vertices.Add(FDynamicMeshVertex(FVector(BboxMax.X, BboxMin.Y, BboxMax.Z)));
-	Vertices.Add(FDynamicMeshVertex(FVector(BboxMin.X, BboxMax.Y, BboxMax.Z)));
-	Vertices.Add(FDynamicMeshVertex(FVector(BboxMax.X, BboxMax.Y, BboxMax.Z)));
+	Vertices.Add(FDynamicMeshVertex(FVector3f(BboxMin.X, BboxMin.Y, BboxMax.Z)));
+	Vertices.Add(FDynamicMeshVertex(FVector3f(BboxMax.X, BboxMin.Y, BboxMax.Z)));
+	Vertices.Add(FDynamicMeshVertex(FVector3f(BboxMin.X, BboxMax.Y, BboxMax.Z)));
+	Vertices.Add(FDynamicMeshVertex(FVector3f(BboxMax.X, BboxMax.Y, BboxMax.Z)));
 
 	Buffers.PositionVertexBuffer.Init(Vertices.Num());
 	Buffers.StaticMeshVertexBuffer.Init(Vertices.Num(), 1);
@@ -152,6 +152,5 @@ IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FCubeMeshVertexFactory, SF_Vertex, FCube
 IMPLEMENT_VERTEX_FACTORY_TYPE(FCubeMeshVertexFactory, "/Plugin/VdbVolume/Private/CubeVertexFactory.ush",
 	EVertexFactoryFlags::UsedWithMaterials |
 	EVertexFactoryFlags::SupportsDynamicLighting |
-	EVertexFactoryFlags::SupportsPositionOnly |
-	(GPUCULL_TODO ? EVertexFactoryFlags::SupportsPrimitiveIdStream : EVertexFactoryFlags::None)
+	EVertexFactoryFlags::SupportsPositionOnly
 );

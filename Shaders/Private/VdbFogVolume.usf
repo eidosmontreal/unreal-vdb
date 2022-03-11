@@ -71,8 +71,8 @@ float4 RaymarchFogVolume(
 	HeterogenousMedium Medium,
 	RandomSequence RandSequence,
 	FMaterialPixelParameters MaterialParameters,
-	MaterialFloat4x4 LocalToWorld,
-	MaterialFloat4x4 WorldToLocal,
+	float4x4 LocalToWorld,
+	float4x4 WorldToLocal,
 	float4 SvPosition)
 {
 	pnanovdb_address_t address; address.byte_offset = 0;
@@ -127,7 +127,7 @@ float4 RaymarchFogVolume(
 		// Update coordinates
 		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, t, Ray.Direction);
 		float3 WorldPos = IndexToWorldPosition(iPos, LocalToWorld, buf, grid);
-		float3 TranslatedWorldPosition = WorldPos + ResolvedView.PreViewTranslation.xyz; // override world position
+		float3 TranslatedWorldPosition = WorldPos + ResolvedView.TranslatedWorldCameraOrigin; // override world position
 
 		// Sample VDB volume
 		float Density = ReadValue(iPos, buf, grid_type, acc) * Medium.densityScale;
@@ -197,8 +197,8 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 	FMaterialPixelParameters MaterialParameters = GetMaterialPixelParameters(FactoryInterpolants, SvPosition);
 
 	uint PrimId = VertexFactoryGetPrimitiveId(FactoryInterpolants);
-	MaterialFloat4x4 WorldToLocal = GetPrimitiveData(PrimId).WorldToLocal;
-	MaterialFloat4x4 LocalToWorld = GetPrimitiveData(PrimId).LocalToWorld;
+	float4x4 WorldToLocal = LWCHackToFloat(GetPrimitiveData(PrimId).WorldToLocal);
+	float4x4 LocalToWorld = LWCHackToFloat(GetPrimitiveData(PrimId).LocalToWorld);
 
 	float DeviceZ = VdbParams.SceneDepthTexture.Load(int3(SvPosition.xy, 0)).x; // backbuffer depth
 

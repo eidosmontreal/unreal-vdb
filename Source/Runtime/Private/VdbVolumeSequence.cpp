@@ -332,7 +332,7 @@ const FIntVector& UVdbVolumeSequence::GetIndexMax(uint32 FrameIndex) const
 
 }
 
-const FMatrix& UVdbVolumeSequence::GetIndexToLocal(uint32 FrameIndex) const
+const FMatrix44f& UVdbVolumeSequence::GetIndexToLocal(uint32 FrameIndex) const
 { 
 	return VolumeFramesInfos[FrameIndex].GetIndexToLocal();
 }
