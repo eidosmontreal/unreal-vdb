@@ -524,7 +524,7 @@ void UNiagaraDataInterfaceVdb::PushToRenderThreadImpl()
 {
 	FNiagaraDataIntefaceProxyVdb* NDIProxy = GetProxyAs<FNiagaraDataIntefaceProxyVdb>();
 	
-	FVdbRenderBuffer* RT_Resource = VdbVolume ? VdbVolume->GetRenderInfos().GetRenderResource() : nullptr;
+	FVdbRenderBuffer* RT_Resource = VdbVolume ? VdbVolume->GetRenderInfos()->GetRenderResource() : nullptr;
 	FIntVector IndexMin = VdbVolume ? VdbVolume->GetIndexMin() : FIntVector();
 	FIntVector IndexMax = VdbVolume ? VdbVolume->GetIndexMax() : FIntVector();
 

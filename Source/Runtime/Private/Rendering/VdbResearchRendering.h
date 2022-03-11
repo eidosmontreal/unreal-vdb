@@ -24,26 +24,34 @@
 
 #include "CoreMinimal.h"
 #include "RendererInterface.h"
+#include "SceneViewExtension.h"
 #include "VdbDenoiser.h"
 #include "MeshCube.h"
 
 class FVdbResearchSceneProxy;
 
 // Very basic manager to handle VdbResearch rendering
-class FVdbResearchRendering
+class FVdbResearchRendering : public FSceneViewExtensionBase
 {
 public:
 
-	FVdbResearchRendering() = default;
-	~FVdbResearchRendering() = default;
-	FVdbResearchRendering(const FVdbResearchRendering&) = delete;
-	FVdbResearchRendering(FVdbResearchRendering&&) = delete;
+	FVdbResearchRendering(const FAutoRegister& AutoRegister);
 
 	void Init();
 	void Release();
 
 	void AddVdbProxy(FVdbResearchSceneProxy* Proxy);
 	void RemoveVdbProxy(FVdbResearchSceneProxy* Proxy);
+
+	//~ Begin ISceneViewExtension Interface
+	virtual void SetupViewFamily(FSceneViewFamily& InViewFamily) override {}
+	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override {}
+	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override {}
+	virtual void PreRenderView_RenderThread(FRHICommandListImmediate& RHICmdList, FSceneView& InView) override {}
+	virtual void PreRenderViewFamily_RenderThread(FRHICommandListImmediate& RHICmdList, FSceneViewFamily& InViewFamily) override;
+	virtual int32 GetPriority() const override { return -1; }
+	virtual bool IsActiveThisFrame_Internal(const FSceneViewExtensionContext& Context) const { return true; }
+	//~ End ISceneViewExtension Interface
 
 private:
 

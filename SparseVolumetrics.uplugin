@@ -14,9 +14,6 @@
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": true,
 	"Installed": false,
-	"SupportedTargetPlatforms": [
-		"Win64"
-	],
 	"Modules": [
 		{
 			"Name": "VolumeImporter",
@@ -36,7 +33,8 @@
 		{
 			"Name": "VolumeRuntime",
 			"Type": "Runtime",
-			"LoadingPhase": "PostConfigInit"
+			"LoadingPhase": "PostConfigInit",
+			"WhitelistPlatforms": [ "Win64" ]
 		}
 	],
 	"Plugins": [

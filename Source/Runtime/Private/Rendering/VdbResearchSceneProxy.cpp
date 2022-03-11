@@ -26,9 +26,15 @@ FVdbResearchSceneProxy::FVdbResearchSceneProxy(const UVdbResearchComponent* InCo
 	, DisplayBounds(InComponent->DisplayBounds)
 	, DisplayUnfinishedPaths(InComponent->DisplayUnfinishedPaths)
 {
-	Params.VdbDensity = InComponent->VdbDensity->GetRenderInfos().GetRenderResource();
-	Params.VdbTemperature = InComponent->VdbTemperature ? InComponent->VdbTemperature->GetRenderInfos().GetRenderResource() : nullptr;
-	Params.VdbBounds = InComponent->VdbDensity->GetBounds();
+	
+	const FVolumeRenderInfos* RenderInfosDensity = InComponent->GetRenderInfos(InComponent->VdbDensity, InComponent->GetSeqComponentDensity());
+	const FVolumeRenderInfos* RenderInfosTemperature = InComponent->GetRenderInfos(InComponent->VdbTemperature, InComponent->GetSeqComponentTemperature());
+
+	Params.VdbDensity = RenderInfosDensity->GetRenderResource();
+	Params.VdbTemperature = RenderInfosTemperature ? RenderInfosTemperature->GetRenderResource() : nullptr;
+	Params.IndexMin = RenderInfosDensity->GetIndexMin();
+	Params.IndexSize = RenderInfosDensity->GetIndexSize();
+	Params.IndexToLocal = RenderInfosDensity->GetIndexToLocal();
 	Params.MaxRayDepth = InComponent->MaxRayDepth;
 	Params.SamplesPerPixel = InComponent->SamplesPerPixel;
 	Params.Color = InComponent->Color;
@@ -57,6 +63,8 @@ void FVdbResearchSceneProxy::GetDynamicMeshElements(const TArray<const FSceneVie
 
 		if (IsShown(View) && (VisibilityMap & (1 << ViewIndex)))
 		{
+			VisibleViews.Add(View);
+
 			// Only render Bounds
 			FPrimitiveDrawInterface* PDI = Collector.GetPDI(ViewIndex);
 			RenderBounds(PDI, ViewFamily.EngineShowFlags, GetBounds(), IsSelected());
@@ -120,4 +128,19 @@ FRDGTextureRef FVdbResearchSceneProxy::GetOrCreateRenderTarget(FRDGBuilder& Grap
 	}
 
 	return GraphBuilder.RegisterExternalTexture(OffscreenRenderTarget[EvenFrame]);
+}
+
+void FVdbResearchSceneProxy::Update(const FMatrix& InIndexToLocal, const FVector& InIndexMin, const FVector& InIndexSize, FVdbRenderBuffer* RenderBuffer, bool IsDensity)
+{
+	if (IsDensity)
+	{
+		Params.VdbDensity = RenderBuffer;
+		Params.IndexMin = InIndexMin;
+		Params.IndexSize = InIndexSize;
+		Params.IndexToLocal = InIndexToLocal;
+	}
+	else
+	{
+		Params.VdbTemperature = RenderBuffer;
+	}
 }

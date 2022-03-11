@@ -35,6 +35,8 @@ public:
 	UVdbVolumeBase() = default;
 	virtual ~UVdbVolumeBase() = default;
 
+	bool IsSequence() const { return IsVolSequence; }
+
 	EVdbType GetType() { return VdbType; };
 	const FBox& GetBounds() const { return Bounds; }
 	int GetMemorySize() const { return MemoryUsage; }
@@ -49,6 +51,7 @@ public:
 	virtual const FIntVector& GetIndexMax(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetIndexMax, return FIntVector::ZeroValue;);
 	virtual const FMatrix& GetIndexToLocal(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetIndexToLocal, return FMatrix::Identity;);
 
+	virtual const FVolumeRenderInfos* GetRenderInfos(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetRenderInfos, return nullptr;);
 	virtual const uint8* GetGridData(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetGridData, return nullptr;);
 	virtual const nanovdb::GridMetaData* GetMetaData(uint32 FrameIndex) PURE_VIRTUAL(UVdbVolumeBase::GetGridData, return nullptr;);
 
@@ -91,6 +94,8 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = "Properties")
 	EQuantizationType Quantization = EQuantizationType::None;
+
+	bool IsVolSequence = false;
 };
 
 

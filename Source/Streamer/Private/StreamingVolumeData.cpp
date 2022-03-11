@@ -69,6 +69,8 @@ FResidentChunk& FStreamingVolumeData::AddResidentChunk(int32 ChunkId, uint32 Chu
 
 void FStreamingVolumeData::RemoveResidentChunk(FResidentChunk& LoadedChunk)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_FStreamingVolumeData_RemoveResidentChunk);
+
 	checkf(LoadedChunk.Refcount == 0, TEXT("Tried to remove a chunk wich was still mapped. Make sure there is an unmap for every map."));
 	checkf(LoadedChunk.IORequest == nullptr, TEXT("RemoveResidentChunk was called on a chunk which hasn't been processed by ProcessCompletedChunks yet."));
 
@@ -112,6 +114,8 @@ This ensures we got something to display initially.
 */
 void FStreamingVolumeData::PrefetchData(IInterface_StreamableVolumetricAssetOwner* AssetOwner)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_FStreamingVolumeData_PrefetchData);
+
 	FScopeLock Lock(&CriticalSection);
 	check(IsInGameThread());
 
@@ -149,9 +153,13 @@ void FStreamingVolumeData::PrefetchData(IInterface_StreamableVolumetricAssetOwne
 		// Load chunk from bulk data if available.
 		const uint32 ChunkDataSize = VolumeAsset->GetChunkDataSize(ChunkId);
 
-		FResidentChunk& ResidentChunk = AddResidentChunk(ChunkId, ChunkDataSize);
-		ResidentChunk.Memory = static_cast<uint8*>(FMemory::Malloc(ChunkDataSize));
-		VolumeAsset->PrefetchChunkSync(ChunkId, ResidentChunk.Memory);
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_FStreamingVolumeData_PrefetchData_Sync);
+
+			FResidentChunk& ResidentChunk = AddResidentChunk(ChunkId, ChunkDataSize);
+			ResidentChunk.Memory = static_cast<uint8*>(FMemory::Malloc(ChunkDataSize));
+			VolumeAsset->PrefetchChunkSync(ChunkId, ResidentChunk.Memory);
+		}
 
 		ChunksAvailable.Add(ChunkId);
 		VolumeAsset->OnChunkAvailable(ChunkId);
@@ -160,6 +168,8 @@ void FStreamingVolumeData::PrefetchData(IInterface_StreamableVolumetricAssetOwne
 
 void FStreamingVolumeData::UpdateStreamingStatus()
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_FStreamingVolumeData_UpdateStreamingStatus);
+
 	FScopeLock Lock(&CriticalSection);
 
 	// Find any chunks that aren't available yet
@@ -183,6 +193,8 @@ void FStreamingVolumeData::UpdateStreamingStatus()
 				// This can happen in the editor if the asset hasn't been saved yet.
 				if (VolumeAsset->IsDataAlreadyLoaded(NeededIndex))
 				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_FStreamingVolumeData_UpdateStreamingStatus_Copy);
+
 					FResidentChunk& ResidentChunk = AddResidentChunk(NeededIndex, ChunkDataSize);
 					ResidentChunk.Memory = FMemory::Malloc(ChunkDataSize);
 					VolumeAsset->CopyChunkContentToMemory(NeededIndex, ResidentChunk.Memory);
@@ -200,6 +212,8 @@ void FStreamingVolumeData::UpdateStreamingStatus()
 					this->OnAsyncReadComplete(NeededIndex, Req);
 				};
 				
+				TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_FStreamingVolumeData_UpdateStreamingStatus_CreateRequest);
+
 				ResidentChunk.IORequest = VolumeAsset->CreateStreamingRequest(NeededIndex, AsyncFileCallBack);
 				if (!ResidentChunk.IORequest)
 				{
@@ -251,7 +265,8 @@ void FStreamingVolumeData::UpdateStreamingStatus()
 
 bool FStreamingVolumeData::BlockTillAllRequestsFinished(float TimeLimit)
 {
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_VA_BlockTillAllRequestsFinished);
+	TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_FStreamingVolumeData_BlockTillAllRequestsFinished);
+
 	FScopeLock Lock(&CriticalSection);
 
 	if (TimeLimit == 0.0f)
@@ -293,6 +308,8 @@ void FStreamingVolumeData::ProcessCompletedChunks()
 	{
 		return;
 	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_FStreamingVolumeData_ProcessCompletedChunks);
 
 	FCompletedChunk CompletedChunk;
 	while (CompletedChunks.Dequeue(CompletedChunk))
@@ -341,6 +358,8 @@ void FStreamingVolumeData::ProcessCompletedChunks()
 
 const uint8* FStreamingVolumeData::MapChunk(uint32 ChunkIndex, bool ChunkHasToBeStreamed, uint32* OutChunkSize)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_FStreamingVolumeData_MapChunk);
+
 	FScopeLock Lock(&CriticalSection);
 
 	// Quickly check before mapping if maybe something new arrived we haven't done bookkeeping for yet
@@ -384,6 +403,8 @@ const uint8* FStreamingVolumeData::MapChunk(uint32 ChunkIndex, bool ChunkHasToBe
 
 void FStreamingVolumeData::UnmapChunk(uint32 ChunkIndex)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_FStreamingVolumeData_UnmapChunk);
+
 	FScopeLock Lock(&CriticalSection);
 
 	FResidentChunk* ResidentChunk = Chunks.Find(ChunkIndex);

@@ -17,6 +17,8 @@
 #include "VdbComponent.h"
 #include "VdbCommon.h"
 #include "VdbVolume.h"
+#include "VdbVolumeSequence.h"
+#include "VdbSequenceComponent.h"
 #include "Rendering/VdbSceneProxy.h"
 #include "Rendering/VdbRendering.h"
 
@@ -26,9 +28,6 @@
 
 #define LOCTEXT_NAMESPACE "VdbComponent"
 
-FIntVector UVdbComponentBase::DummyIntVect;
-FMatrix UVdbComponentBase::DummyMatrix;
-
 //-----------------------------------------------------------------------------
 // Component
 //-----------------------------------------------------------------------------
@@ -36,19 +35,45 @@ FMatrix UVdbComponentBase::DummyMatrix;
 UVdbComponentBase::UVdbComponentBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> DefaultMaterial(TEXT("/SparseVolumetrics/M_Vdb_DefaultUnlit"));
-	Material = DefaultMaterial.Object;
+
 }
 
 UVdbComponentBase::~UVdbComponentBase() 
 {
 }
 
-void UVdbComponentBase::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials) const
+void UVdbComponentBase::SetVdbSequence(UVdbVolumeBase* SeqVolume, UVdbSequenceComponent* SeqComponent)
 {
-	if (Material != nullptr)
+	if (SeqVolume && SeqVolume->IsSequence())
 	{
-		OutMaterials.Add(Material);
+		UVdbVolumeSequence* VdbSequence = CastChecked<UVdbVolumeSequence>(SeqVolume);
+		SeqComponent->SetVdbSequence(VdbSequence);
+	}
+	else
+	{
+		SeqComponent->SetVdbSequence(nullptr);
+	}
+	MarkRenderStateDirty();
+}
+
+const FVolumeRenderInfos* UVdbComponentBase::GetRenderInfos(const UVdbVolumeBase* VdbVolume, const UVdbSequenceComponent* SeqComponent) const
+{
+	if (VdbVolume != nullptr)
+	{
+		bool ValidSequence = VdbVolume->IsSequence() && SeqComponent;
+		if (ValidSequence)
+		{
+			const uint32 FrameIndex = SeqComponent->GetFrameIndexFromElapsedTime();
+			return VdbVolume->GetRenderInfos(FrameIndex);
+		}
+		else
+		{
+			return VdbVolume->GetRenderInfos(0);
+		}
+	}
+	else
+	{
+		return nullptr;
 	}
 }
 
@@ -69,19 +94,6 @@ void MarkRenderStateDirtyForAllVdbComponents(UObject* InputObject)
 			Component->MarkRenderStateDirty();
 		}
 	}
-}
-
-void UVdbComponentBase::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	static const FName MaterialName = GET_MEMBER_NAME_CHECKED(UVdbComponentBase, Material);
-
-	const FName PropertyName = PropertyChangedEvent.Property->GetFName();
-	if (PropertyName == MaterialName)
-	{
-		MarkRenderStateDirty();
-	}
-
-	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
 
 #endif

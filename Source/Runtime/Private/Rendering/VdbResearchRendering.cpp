@@ -34,6 +34,11 @@ TAutoConsoleVariable<int32> CVarPathTracingMaxSamplesPerPixel(
 	ECVF_RenderThreadSafe
 );
 
+FVdbResearchRendering::FVdbResearchRendering(const FAutoRegister& AutoRegister)
+	: FSceneViewExtensionBase(AutoRegister)
+{
+}
+
 void FVdbResearchRendering::InitBuffers()
 {
 	if (VertexBufferRHI == nullptr || !VertexBufferRHI.IsValid())
@@ -178,8 +183,9 @@ TRDGUniformBufferRef<FVdbResearchShaderParams> CreateVdbUniformBuffer(FRDGBuilde
 	// Volume Params
 	UniformParameters->VdbDensity = Params.VdbDensity->GetBufferSRV();
 	UniformParameters->VdbTemperature = Params.VdbTemperature ? Params.VdbTemperature->GetBufferSRV() : UniformParameters->VdbDensity;
-	UniformParameters->VolumeScale = Params.VdbBounds.GetSize();
-	UniformParameters->VolumeTranslation = Params.VdbBounds.Min;
+	UniformParameters->VolumeScale = Params.IndexSize;
+	UniformParameters->VolumeTranslation = Params.IndexMin;
+	UniformParameters->VolumeToLocal = Params.IndexToLocal;
 	UniformParameters->LocalToWorld = Proxy->GetLocalToWorld();
 	UniformParameters->WorldToLocal = Proxy->GetLocalToWorld().Inverse();
 	UniformParameters->SamplesPerPixel = Params.SamplesPerPixel;
@@ -212,7 +218,7 @@ void FVdbResearchRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 	const FIntRect& ViewportRect = Parameters.ViewportRect;
 
 	// Sort back to front. Ignore frustum visibility
-	TArray<FVdbResearchSceneProxy*> SortedVdbProxies = VdbProxies;
+	TArray<FVdbResearchSceneProxy*> SortedVdbProxies = VdbProxies.FilterByPredicate([View](const FVdbResearchSceneProxy* Proxy) { return Proxy->IsVisible(View); });
 	SortedVdbProxies.Sort([ViewMat = View->ViewMatrices.GetViewMatrix()](const FVdbResearchSceneProxy& Lhs, const FVdbResearchSceneProxy& Rhs) -> bool
 		{
 			const FVector& LeftProxyCenter = Lhs.GetBounds().GetSphere().Center;
@@ -253,7 +259,7 @@ void FVdbResearchRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 		FRDGTextureRef VdbCurrRenderTexture = Proxy->GetOrCreateRenderTarget(GraphBuilder, RtSize, IsEven);
 		FRDGTextureRef VdbPrevRenderTexture = Proxy->GetOrCreateRenderTarget(GraphBuilder, RtSize, !IsEven);
 
-		if (NumAccumulations < MaxSPP)
+		if (NumAccumulations < MaxSPP && Proxy->GetParams().VdbDensity)
 		{
 			TRDGUniformBufferRef<FVdbResearchShaderParams> VdbUniformBuffer = CreateVdbUniformBuffer(GraphBuilder, Proxy);
 
@@ -342,4 +348,13 @@ void FVdbResearchRendering::RemoveVdbProxy(FVdbResearchSceneProxy* Proxy)
 				VdbProxies.Remove(Proxy);
 			}
 		});
+}
+
+void FVdbResearchRendering::PreRenderViewFamily_RenderThread(FRHICommandListImmediate& RHICmdList, FSceneViewFamily& InViewFamily)
+{
+	// Reset visibility on all registered FVdbProxies, before SceneVisibility is computed 
+	for (FVdbResearchSceneProxy* Proxy : VdbProxies)
+	{
+		Proxy->ResetVisibility();
+	}
 }

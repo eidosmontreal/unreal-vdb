@@ -56,7 +56,7 @@ public:
 	template<typename T>
 	const nanovdb::NanoGrid<T>* GetNanoGrid() { return VolumeRenderInfos.GetNanoGridHandle().grid<T>(); }
 	
-	FVolumeRenderInfos& GetRenderInfos() { return VolumeRenderInfos; }
+	virtual const FVolumeRenderInfos* GetRenderInfos(uint32 = 0) const override { return &VolumeRenderInfos; }
 
 private:
 

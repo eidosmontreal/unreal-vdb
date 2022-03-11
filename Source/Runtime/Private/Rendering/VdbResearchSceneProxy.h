@@ -24,7 +24,9 @@ struct FVdbResearchParams
 {
 	FVdbRenderBuffer* VdbDensity;
 	FVdbRenderBuffer* VdbTemperature;
-	FBox VdbBounds;
+	FVector IndexMin;
+	FVector IndexSize;
+	FMatrix IndexToLocal;
 	uint32 MaxRayDepth;
 	uint32 SamplesPerPixel;
 	FLinearColor Color;
@@ -53,6 +55,10 @@ public:
 
 	FRDGTextureRef GetOrCreateRenderTarget(FRDGBuilder& GraphBuilder, const FIntPoint& RtSize, bool EvenFrame);
 
+	void ResetVisibility() { VisibleViews.Empty(4); }
+	bool IsVisible(const FSceneView* View) const { return VisibleViews.Find(View) != INDEX_NONE; }
+	void Update(const FMatrix& InIndexToLocal, const FVector& InIndexMin, const FVector& InIndexSize, FVdbRenderBuffer* RenderBuffer, bool IsDensity);
+
 protected:
 	//~ Begin FPrimitiveSceneProxy Interface
 	virtual SIZE_T GetTypeHash() const override;
@@ -73,4 +79,5 @@ private:
 	// RTs per proxy, for easier translucency support
 	TRefCountPtr<IPooledRenderTarget> OffscreenRenderTarget[2];
 
+	mutable TArray<const FSceneView*> VisibleViews;
 };

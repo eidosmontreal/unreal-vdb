@@ -72,7 +72,7 @@ FVolumeRuntimeModule::TRenderResearchPtr FVolumeRuntimeModule::GetOrCreateRender
 {
 	if (!VdbRenderResearchMgr.IsValid())
 	{
-		VdbRenderResearchMgr = MakeShared<FVdbResearchRendering, ESPMode::ThreadSafe>();
+		VdbRenderResearchMgr = FSceneViewExtensions::NewExtension<FVdbResearchRendering>();
 		VdbRenderResearchMgr->Init();
 	}
 	return VdbRenderResearchMgr;

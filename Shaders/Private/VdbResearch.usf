@@ -25,6 +25,8 @@ uint				DisplayUnfinishedPaths;
 
 // Using Uniform Buffer VdbResearchParams
 
+#define RAYMARCH
+
 struct VdbSampler
 {
 	pnanovdb_grid_handle_t Grid;
@@ -37,9 +39,10 @@ struct VdbSampler
 
 void MainVS(in float4 InPosition : ATTRIBUTE0, out float4 OutPosition : SV_Position)
 {
-	float4 LocalPos = InPosition * float4(VdbResearchParams.VolumeScale, 1.0) + float4(VdbResearchParams.VolumeTranslation, 0.0);
+	float4 VolPos = InPosition * float4(VdbResearchParams.VolumeScale, 1.0) + float4(VdbResearchParams.VolumeTranslation, 0.0);
+	float4 LocalPos = mul(VolPos, VdbResearchParams.VolumeToLocal);
 	float4 WorldPos = mul(LocalPos, VdbResearchParams.LocalToWorld);
-	OutPosition = mul(WorldPos, View.WorldToClip);
+	OutPosition = mul(WorldPos, View.RelativeWorldToClip);
 }
 
 #elif defined(SHADER_PIXEL)
@@ -126,7 +129,121 @@ float GetShadowTransmittance(
 	return GetTransmittance(bbox_min, bbox_max, ShadowRay, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor, medium, StepMultiplier, RandSequence);
 }
 
-float4 TraceFogVolume(
+// Ray Marching version
+float4 RaymarchVolume(
+	VdbSampler DensitySampler,
+	VdbSampler TemperatureSampler,
+	pnanovdb_vec3_t bbox_min,
+	pnanovdb_vec3_t bbox_max,
+	VdbRay Ray,
+	HeterogenousMedium Medium,
+	in out RandomSequence RandSequence,
+	pnanovdb_vec3_t lightDir,
+	pnanovdb_vec3_t lightCol)
+{
+	if (!pnanovdb_hdda_ray_clip(bbox_min, bbox_max, Ray.Origin, Ray.TMin, Ray.Direction, Ray.TMax))
+	{
+		return float4(0.0, 0.0, 0.0, 0.0);
+	}
+	else if (DisplayBounds != 0) // Debug Display
+	{
+		return float4(1.0, 0.0, 1.0, 1.0);
+	}
+
+	// Doesn't compile on PS5. FIXME
+	//// Speed up empty space traversal, and get accurate first intersection
+	//float Val = 0;
+	//if (!GetFirstIntersection(DensitySampler.GridType, DensitySampler.GridBuffer, DensitySampler.Accessor, Ray, Val, Medium))
+	//{
+	//	return float4(0.0, 0.0, 0.0, 0.0);
+	//}
+
+	// Transform light world direction to index space
+	float3 LightDir = WorldToIndexDirection(View.DirectionalLightDirection, VdbResearchParams.WorldToLocal, DensitySampler.GridBuffer, DensitySampler.Grid); // Index space
+	float3 LightCol = View.DirectionalLightColor.xyz;
+
+	float3 Radiance = 0.0;
+	float Transmittance = 1.0;
+
+	uint NumInteractions = 0;
+	while (NumInteractions++ < VdbResearchParams.MaxRayDepth) {
+
+		float s = DeltaTracking(Ray, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor, Medium, RandSequence);
+		if (s >= Ray.TMax)
+			break;
+
+		float Dist = s - Ray.TMin;
+
+		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
+		pnanovdb_coord_t ijk = pnanovdb_hdda_pos_to_ijk(iPos);
+
+		float Density = ReadValue(s, Ray, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
+
+		float SigmaT = Density * Medium.densityScale; // aka Density, aka Extinction
+		float Albedo = Medium.albedo;
+		float SigmaS = SigmaT * Albedo; // Scattering
+		float SigmaA = SigmaT * (1.0 - Albedo); // Absorption
+
+		// Single scattering from Directional light or Environment
+		float3 ShadowDirection = LightDir;
+		bool EnvLight = RandomSequence_GenerateSample1D(RandSequence) > 0.5; // Use Key Light or environment light
+		if (EnvLight)
+		{
+			// Random sample in entire sphere direction to capture Ambient environment
+			float2 rnd = RandomSequence_GenerateSample2D(RandSequence);
+			ShadowDirection = SampleHenyeyGreenstein(0.0, rnd.x, rnd.y);
+		}
+		float ShadowTransmittance = GetShadowTransmittance(DensitySampler, bbox_min, bbox_max, iPos, ShadowDirection, Medium, 4.0, RandSequence);
+
+		float3 IncomingRadiance = ShadowTransmittance * LightCol;
+		if (EnvLight)
+		{
+			// Ambient / environment. 
+			float3 WorldDir = IndexToWorldDirection(ShadowDirection, VdbResearchParams.LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
+			IncomingRadiance = ShadowTransmittance * GetSkySHDiffuse(WorldDir) * View.SkyLightColor.rgb;
+		}
+
+		float4 Phase = 0.785398163398f; // isotropic for now, 1 / 4*pi
+		Radiance += Transmittance * SigmaS * IncomingRadiance * Dist * VdbResearchParams.Color * Phase;
+
+#if USE_TEMPERATURE
+		// Blackbody emissive
+		float Temperature = ReadValue(s, Ray, TemperatureSampler.GridBuffer, TemperatureSampler.GridType, TemperatureSampler.Accessor) * VdbResearchParams.Temperature;
+		float3 TemperatureColor = ColorTemperatureToRGB(Temperature) * VdbResearchParams.BlackbodyTint * VdbResearchParams.BlackbodyIntensity;
+
+		Radiance += Transmittance * TemperatureColor * SigmaA * Dist;
+#endif
+
+		// Regular emissive
+		Radiance += Transmittance * VdbResearchParams.EmissionStrength * VdbResearchParams.EmissionColor * SigmaA * Dist;
+
+		Transmittance *= exp(-SigmaT * Dist);
+
+		if (Transmittance < 0.05f)
+		{
+			Transmittance = 0.0f;
+			break;
+		}
+
+		Ray.Origin = iPos;
+		Ray.TMin = 0.1f;
+		Ray.TMax -= s;
+	}
+	
+	if (DisplayUnfinishedPaths) // Debug display
+	{
+		// Is the path length exceeded?
+		if (NumInteractions > VdbResearchParams.MaxRayDepth)
+		{
+			return float4(1.0, 0.0, 1.0, 1.0);
+		}
+	}
+
+	return float4(Radiance, 1.0 - Transmittance);
+}
+
+// Random walk version. Doesn't composite well with background
+float4 RandomWalkVolume(
 	VdbSampler DensitySampler,
 	VdbSampler TemperatureSampler,
 	pnanovdb_vec3_t bbox_min,
@@ -160,7 +277,7 @@ float4 TraceFogVolume(
 			break;
 
 		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
-		
+
 		float3 ShadowDirection = LightDir;
 		bool EnvLight = RandomSequence_GenerateSample1D(RandSequence) > 0.5; // Use Key Light or environment light
 		if (EnvLight)
@@ -180,7 +297,7 @@ float4 TraceFogVolume(
 		else
 		{
 			// Only support single directional lighting.
-			Radiance += Throughput * ShadowTransmittance * LightCol;
+			Radiance += Throughput * ShadowTransmittance * LightCol * VdbResearchParams.Color;
 		}
 
 #if USE_TEMPERATURE
@@ -206,10 +323,10 @@ float4 TraceFogVolume(
 		Throughput *= Medium.albedo;
 
 		// Russian roulette absorption.
-		if (Throughput < 0.2f) 
+		if (Throughput < 0.2f)
 		{
 			float r1 = RandomSequence_GenerateSample1D(RandSequence);
-			if (r1 > Throughput * 5.0f) 
+			if (r1 > Throughput * 5.0f)
 			{
 				Radiance = 0.0;
 				break;
@@ -230,7 +347,7 @@ float4 TraceFogVolume(
 			break;
 		}
 	}
-	
+
 	if (DisplayUnfinishedPaths) // Debug display
 	{
 		// Is the path length exceeded?
@@ -282,11 +399,7 @@ float4 VdbFogVolume(uint2 LaunchIndex)
 	// ------------------------------------------------------------------------------------------------------
 	// Trace rays and accumulate
 
-#if PATH_TRACING
-	VdbResearchParams.SamplesPerPixel = 1;
-#endif
-
-	uint LinearIndex = LaunchIndex.y * View.BufferSizeAndInvSize.x + LaunchIndex.x;
+	uint LinearIndex = LaunchIndex.y * uint(View.BufferSizeAndInvSize.x) + LaunchIndex.x;
 
 	for (uint SampleIndex = 0; SampleIndex < VdbResearchParams.SamplesPerPixel; ++SampleIndex)
 	{
@@ -298,9 +411,13 @@ float4 VdbFogVolume(uint2 LaunchIndex)
 		#else
 			float2 Jitter = RandomSequence_GenerateSample2D(RandSequence) - 0.5;
 		#endif
-		VdbRay Ray = PrepareRayFromPixel(DensitySampler.GridBuffer, DensitySampler.Grid, LaunchIndex.xy, View.BufferSizeAndInvSize.xy, Jitter, DeviceZ, VdbResearchParams.WorldToLocal); // index/vdb space
+		VdbRay Ray = PrepareRayFromPixel(DensitySampler.GridBuffer, DensitySampler.Grid, LaunchIndex.xy, uint2(View.BufferSizeAndInvSize.xy), Jitter, DeviceZ, VdbResearchParams.WorldToLocal); // index/vdb space
 
-		Radiance += TraceFogVolume(DensitySampler, TemperatureSampler, bbox_min, bbox_max, Ray, Medium, RandSequence, View.DirectionalLightDirection.xyz, View.DirectionalLightColor.rgb);
+#ifdef RAYMARCH
+		Radiance += RaymarchVolume(DensitySampler, TemperatureSampler, bbox_min, bbox_max, Ray, Medium, RandSequence, View.DirectionalLightDirection.xyz, View.DirectionalLightColor.rgb);
+#else
+		Radiance += RandomWalkVolume(DensitySampler, TemperatureSampler, bbox_min, bbox_max, Ray, Medium, RandSequence, View.DirectionalLightDirection.xyz, View.DirectionalLightColor.rgb);
+#endif
 	}
 
 	Radiance /= VdbResearchParams.SamplesPerPixel;
@@ -318,7 +435,7 @@ void MainPS(
 	uint NumSamples = NumAccumulations + 1;
 	float BlendFactor = 1.0 / float(NumSamples);
 	// Reset if first Accumuluation
-	float4 OldPixel = NumSamples > 1 ? PrevAccumTex[SvPosition.xy] : 0.0;
+	float4 OldPixel = NumSamples > 1 ? PrevAccumTex[uint2(SvPosition.xy)] : 0.0;
 	float4 NewRadiance = lerp(OldPixel, Radiance, BlendFactor);
 
 	OutColor = NewRadiance;

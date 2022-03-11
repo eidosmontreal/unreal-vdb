@@ -86,16 +86,16 @@ void UVdbSequenceComponent::SetElapsedTimeToStartTime()
 }
 
 void UVdbSequenceComponent::OnRegister()
-{	
+{
 	Super::OnRegister();
-	
+
 	SetElapsedTimeToStartTime();
 
 	if (VdbSequence != nullptr)
 	{
 		VdbSequence->RegisterComponent(this);
 		Duration = VdbSequence->GetDurationInSeconds() / PlaybackSpeed;
-	}	
+	}
 	else
 	{
 		Duration = 0.f;
@@ -116,27 +116,6 @@ void UVdbSequenceComponent::OnUnregister()
 	Super::OnUnregister();
 }
 
-FPrimitiveSceneProxy* UVdbSequenceComponent::CreateSceneProxy()
-{
-	if (!VdbSequence || !VdbSequence->IsValid() || !GetMaterial(0))
-		return nullptr;
-
-	return new FVdbSceneProxy(this);
-}
-
-FBoxSphereBounds UVdbSequenceComponent::CalcBounds(const FTransform& LocalToWorld) const
-{
-	if (VdbSequence != nullptr)
-	{
-		FBoxSphereBounds VdbBounds(VdbSequence->GetBounds());
-		return VdbBounds.TransformBy(LocalToWorld);
-	}
-	else
-	{
-		return Super::CalcBounds(LocalToWorld);
-	}
-}
-
 void UVdbSequenceComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
@@ -154,7 +133,7 @@ void UVdbSequenceComponent::TickComponent(float DeltaTime, enum ELevelTick TickT
 	// Buffer on play	
 	if (NeedBuffering)
 	{
-		const uint32 NbFramesToCacheBeforeStartingAnimation = (uint32)CVar_VdbSeq_NbFramesToCacheBeforeStartingAnimation.GetValueOnAnyThread();		
+		const uint32 NbFramesToCacheBeforeStartingAnimation = (uint32)CVar_VdbSeq_NbFramesToCacheBeforeStartingAnimation.GetValueOnAnyThread();
 		const uint32 BeginFrameIndex = GetFrameIndexFromElapsedTime();
 		const uint32 EndFrameIndex = FMath::Min(BeginFrameIndex + NbFramesToCacheBeforeStartingAnimation, GetNbFrames());
 
@@ -192,47 +171,18 @@ void UVdbSequenceComponent::TickComponent(float DeltaTime, enum ELevelTick TickT
 	}
 }
 
-bool UVdbSequenceComponent::UpdateSceneProxy(uint32 FrameIndex)
+void UVdbSequenceComponent::SetManualTick(bool InManualTick)
 {
-	if (!VdbSequence->IsGridDataInMemory(FrameIndex, true) || (SceneProxy == nullptr))
-	{
-		return false;
-	}
-
-	IndexOfLastDisplayedFrame = FrameIndex;
-
-	FVolumeRenderInfos* RenderInfos = GetRenderInfos();
-	if (RenderInfos)
-	{
-		ENQUEUE_RENDER_COMMAND(UploadVdbGpuData)(
-			[this,
-			IndexMin = RenderInfos->GetIndexMin(),
-			IndexSize = RenderInfos->GetIndexSize(),
-			IndexToLocal = RenderInfos->GetIndexToLocal(),
-			RenderBuffer = RenderInfos->GetRenderResource()]
-		(FRHICommandList& RHICmdList)
-		{
-			FVdbSceneProxy* VdbSceneProxy = static_cast<FVdbSceneProxy*>(SceneProxy);
-			if (VdbSceneProxy != nullptr)
-			{
-				VdbSceneProxy->Update(IndexToLocal, IndexMin, IndexSize, RenderBuffer);
-			}
-		});
-	}
-
-	return true;
-}
-
-void UVdbSequenceComponent::SetManualTick(bool InManualTick) 
-{ 
-	ManualTick = InManualTick; 
+	ManualTick = InManualTick;
 }
 
 void UVdbSequenceComponent::UpdateIndicesOfChunksToStream(TArray<uint32>& IndicesOfChunksToStream)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_UVdbSequenceComponent_UpdateIndicesOfChunksToStream);
+
 	check(IndicesOfChunksToStream.IsEmpty());
 
-	if (VdbSequence == nullptr)
+	if (VdbSequence == nullptr || VdbComponent == nullptr)
 	{
 		return;
 	}
@@ -242,14 +192,18 @@ void UVdbSequenceComponent::UpdateIndicesOfChunksToStream(TArray<uint32>& Indice
 	IndicesOfChunksToStream.Add(VdbSequence->GetChunkIndexFromFrameIndex(FrameIndexToStream));
 
 	// If the frame isn't ready to be displayed, keep in memory the data for the currently displayed frame
-	if (!UpdateSceneProxy(FrameIndexToStream))
-	{		
+	if (!VdbComponent->UpdateSceneProxy(FrameIndexToStream, VdbSequence))
+	{
 		if ((IndexOfLastDisplayedFrame != uint32(~0)) && (IndexOfLastDisplayedFrame != FrameIndexToStream))
 		{
 			IndicesOfChunksToStream.Add(VdbSequence->GetChunkIndexFromFrameIndex(IndexOfLastDisplayedFrame));
 		}
 	}
-	
+	else
+	{
+		IndexOfLastDisplayedFrame = FrameIndexToStream;
+	}
+
 	// In play mode or in manual tick mode, let's stream the data for the frames around the current one
 	if ((CurrentPlayMode != EVolumePlayMode::Stopped) || ManualTick)
 	{
@@ -339,7 +293,9 @@ bool UVdbSequenceComponent::SetVdbSequence(UVdbVolumeSequence* Sequence)
 	}
 
 	StopAnimation();
-	VdbSequence = Sequence;	
+	VdbSequence = Sequence;
+	IsEnabled = VdbSequence != nullptr;
+
 	return true;
 }
 
@@ -371,31 +327,6 @@ void UVdbSequenceComponent::StopAnimation()
 	NeedBuffering = true;
 }
 
-FVolumeRenderInfos* UVdbSequenceComponent::GetRenderInfos() const
-{
-	if (VdbSequence != nullptr)
-	{
-		const uint32 FrameIndex = GetFrameIndexFromElapsedTime();
-		return &VdbSequence->GetRenderInfos(FrameIndex);
-	}
-	else
-	{
-		return nullptr;
-	}
-}
-
-EVdbType UVdbSequenceComponent::GetVdbType() const
-{
-	if (VdbSequence != nullptr)
-	{
-		return VdbSequence->GetType();
-	}
-	else
-	{
-		return EVdbType::Undefined;
-	}
-}
-
 void UVdbSequenceComponent::ResetAnimationTime()
 {
 	SetElapsedTimeToStartTime();
@@ -411,14 +342,41 @@ void UVdbSequenceComponent::TickAtThisTime(const float Time, bool bInIsRunning, 
 
 void UVdbSequenceComponent::OnChunkAvailable(uint32 ChunkId)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_UVdbSequenceComponent_OnChunkAvailable);
+
 	if (ManualTick)
 	{
-		const uint32 FrameIndex = GetFrameIndexFromElapsedTime();		
+		const uint32 FrameIndex = GetFrameIndexFromElapsedTime();
 		if (VdbSequence->GetChunkIndexFromFrameIndex(FrameIndex) == ChunkId)
 		{
-			UpdateSceneProxy(FrameIndex);
+			if (VdbComponent->UpdateSceneProxy(FrameIndex, VdbSequence))
+			{
+				IndexOfLastDisplayedFrame = FrameIndex;
+			}
 		}
 	}
 }
+
+#if WITH_EDITOR
+
+void UVdbSequenceComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+
+	if (VdbComponent)
+	{
+		VdbComponent->UpdateSeqProperties(this);
+	}
+}
+
+void UVdbSequenceComponent::CopyAttributes(const UVdbSequenceComponent* SeqComponent)
+{
+	Autoplay = SeqComponent->Autoplay;
+	Looping = SeqComponent->Looping;
+	PlaybackSpeed = SeqComponent->PlaybackSpeed;
+	OffsetRelative = SeqComponent->OffsetRelative;
+}
+
+#endif
 
 #undef LOCTEXT_NAMESPACE

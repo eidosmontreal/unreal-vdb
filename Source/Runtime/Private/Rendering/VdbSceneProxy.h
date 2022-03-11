@@ -17,13 +17,13 @@
 #include "CoreMinimal.h"
 #include "PrimitiveSceneProxy.h"
 
-class UVdbComponentBase;
+class UVdbComponent;
 
 // Render Thread equivalent of VdbComponent
 class FVdbSceneProxy : public FPrimitiveSceneProxy
 {
 public:
-	FVdbSceneProxy(const UVdbComponentBase* InComponent);
+	FVdbSceneProxy(const UVdbComponent* InComponent);
 	virtual ~FVdbSceneProxy() = default;
 
 	FVector GetIndexMin() const { return IndexMin; }
@@ -54,7 +54,7 @@ private:
 	TSharedPtr<class FVdbRendering, ESPMode::ThreadSafe> VdbRenderExtension;
 
 	// Fixed attributes
-	const UVdbComponentBase* VdbComponent = nullptr;
+	const UVdbComponent* VdbComponent = nullptr;
 	class UMaterialInterface* Material = nullptr;
 	bool LevelSet;
 

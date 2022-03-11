@@ -23,7 +23,7 @@
 #include "Rendering/VdbRendering.h"
 #include "Materials/Material.h"
 
-FVdbSceneProxy::FVdbSceneProxy(const UVdbComponentBase* InComponent)
+FVdbSceneProxy::FVdbSceneProxy(const UVdbComponent* InComponent)
 	: FPrimitiveSceneProxy(InComponent)
 	, VdbComponent(InComponent)
 	, Material(InComponent->GetMaterial(0))
@@ -33,10 +33,12 @@ FVdbSceneProxy::FVdbSceneProxy(const UVdbComponentBase* InComponent)
 	LevelSet = InComponent->GetVdbType() == EVdbType::SignedDistance;
 	VdbRenderExtension = FVolumeRuntimeModule::GetRenderExtension();
 
-	IndexMin = InComponent->GetRenderInfos()->GetIndexMin();
-	IndexSize = InComponent->GetRenderInfos()->GetIndexSize();
-	IndexToLocal = InComponent->GetRenderInfos()->GetIndexToLocal();
-	RenderBuffer = InComponent->GetRenderInfos()->GetRenderResource();
+	const FVolumeRenderInfos* RenderInfosDensity = InComponent->GetRenderInfos(InComponent->VdbVolume, InComponent->GetSeqComponent());
+
+	IndexMin = RenderInfosDensity->GetIndexMin();
+	IndexSize = RenderInfosDensity->GetIndexSize();
+	IndexToLocal = RenderInfosDensity->GetIndexToLocal();
+	RenderBuffer = RenderInfosDensity->GetRenderResource();
 }
 
 // This setups associated volume mesh for built-in Unreal passes. 

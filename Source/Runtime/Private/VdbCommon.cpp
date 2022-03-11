@@ -81,6 +81,15 @@ void FVolumeFrameInfos::UpdateFrame(nanovdb::GridHandle<>& NanoGridHandle)
 
 	MemoryUsage = NanoGridHandle.size();
 	NumberActiveVoxels = MetaData->activeVoxelCount();
+
+	if (NumberActiveVoxels == 0)
+	{
+		// Special case to handle empty volumes. Create arbitrary smallest volume.
+		Bounds = FBox(FVector(0.0, 0.0, 0.0), FVector(1.0, 1.0, 1.0));
+		IndexMin = FIntVector(0, 0, 0);
+		IndexMax = FIntVector(1, 1, 1);
+		Size = IndexMax - IndexMin;
+	}
 }
 #endif
 

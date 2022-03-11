@@ -198,7 +198,7 @@ pnanovdb_vec3_t ZeroCrossingNormal(pnanovdb_uint32_t grid_type, pnanovdb_buf_t g
 // Fog Volume specific
 //-----------------------------------------------------------------------------------------------------------
 
-float DeltaTracking(inout VdbRay Ray, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc, HeterogenousMedium medium, inout RandomSequence RandSequence)
+float DeltaTracking(in VdbRay Ray, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc, HeterogenousMedium medium, inout RandomSequence RandSequence)
 {
 	float densityMaxInv = 1.0f / medium.densityMax;
 	float t = Ray.TMin;

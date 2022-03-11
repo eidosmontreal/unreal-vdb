@@ -97,6 +97,8 @@ FVolumeStreamingManager::~FVolumeStreamingManager()
 
 void FVolumeStreamingManager::UpdateResourceStreaming(float DeltaTime, bool bProcessEverything)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_FVolumeStreamingManager_UpdateResourceStreaming);
+
 	check(IsInGameThread());
 
 	//Phase zero: Clear ChunksNeeded
@@ -258,6 +260,8 @@ void FVolumeStreamingManager::RemoveStreamingComponent(IInterface_StreamableVolu
 
 void FVolumeStreamingManager::PrefetchDataInternal(IInterface_StreamableVolumetricAssetOwner* AssetOwner)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_FVolumeStreamingManager_PrefetchDataInternal);
+
 	check(IsInGameThread());
 	check(IsManagedComponent(AssetOwner));
 	if (AssetOwner->GetStreamableAsset())

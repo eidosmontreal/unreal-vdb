@@ -65,6 +65,8 @@ void FVdbRenderBufferPool::Release()
 // Heavily inspired by FRenderGraphResourcePool::TickPoolElements
 void FVdbRenderBufferPool::TickPoolElements()
 {
+	SCOPED_NAMED_EVENT(VolAnim_FVdbRenderBufferPool_TickPoolElements, FColor::Cyan);
+
 	const uint32 kFramesUntilRelease = 30;
 
 	int32 BufferIndex = 0;
@@ -82,6 +84,8 @@ void FVdbRenderBufferPool::TickPoolElements()
 
 		if (bIsUnused && bNotRequestedRecently)
 		{
+			SCOPED_NAMED_EVENT(VolAnim_FVdbRenderBufferPool_TickPoolElements_BeginRelease, FColor::Yellow);
+
 			BeginReleaseResource(Buffer); // Release resource
 			BuffersBeingReleased.Enqueue(Buffer);
 
@@ -99,6 +103,7 @@ void FVdbRenderBufferPool::TickPoolElements()
 	// clean up released resources
 	while (!BuffersBeingReleased.IsEmpty() && !BuffersBeingReleased.Peek()->GetReference()->IsInitialized())
 	{
+		SCOPED_NAMED_EVENT(VolAnim_FVdbRenderBufferPool_TickPoolElements_Pop, FColor::Yellow);
 		BuffersBeingReleased.Pop();
 	}
 }

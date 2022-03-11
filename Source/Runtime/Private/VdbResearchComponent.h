@@ -15,25 +15,29 @@
 #pragma once 
 
 #include "CoreMinimal.h"
-#include "Components/PrimitiveComponent.h"
+#include "VdbComponentBase.h"
 
 #include "VdbResearchComponent.generated.h"
 
+class UVdbSequenceComponent;
+
 // If you do not care about Unreal features integration, I recommend using this "Research" component.
 // It allows you to experiment with OpenVDB / NanoVDB rendering, without having to worry 
-// about (almost) anything specific to Unreal. These NanoVDB are rendered at the end of the graphics pipeline, 
-// just before the Post Processes. 
+// about most Unreal compatibilities. 
+// 
+// These NanoVDB are rendered at the end of the graphics pipeline, just before the Post Processes. 
+// 
 // This cannot be used in production, this is only used for research and experimentation purposes. It will 
 // probably be incompatible with a lot of other Unreal features (but we don't care).
 // Also note that this component can hack into the Unreal's path-tracer, and render high quality images.
 // We made the delibarate choice to only handle NanoVDB FogVolumes with this component, because they benefit most 
 // from experimentation and path-tracers, and are still an active research area (offline and realtime).
 UCLASS(Blueprintable, ClassGroup = Rendering, hideCategories = (Activation, Collision, Cooking, HLOD, Navigation, VirtualTexture), meta = (BlueprintSpawnableComponent))
-class UVdbResearchComponent : public UPrimitiveComponent
+class UVdbResearchComponent : public UVdbComponentBase
 {
 	GENERATED_UCLASS_BODY()
 
-	~UVdbResearchComponent();
+	virtual ~UVdbResearchComponent();
 
 	//----------------------------------------------------------------------------
 	// Volume Attributes
@@ -41,11 +45,11 @@ class UVdbResearchComponent : public UPrimitiveComponent
 
 	// Mandatory density volume. Only supports NanoVDB FogVolumes
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Volumetric)
-	TObjectPtr<class UVdbVolume> VdbDensity;
+	TObjectPtr<class UVdbVolumeBase> VdbDensity;
 
 	// Optional temperature volume. Only supports NanoVDB FogVolumes
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Volumetric)
-	TObjectPtr<class UVdbVolume> VdbTemperature;
+	TObjectPtr<class UVdbVolumeBase> VdbTemperature;
 
 	// Max number of ray bounces
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volumetric, meta = (ClampMin = "1", UIMin = "1", ClampMax = "50", UIMax = "20"))
@@ -125,8 +129,21 @@ class UVdbResearchComponent : public UPrimitiveComponent
 
 	//~ Begin UPrimitiveComponent Interface.
 	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
-	virtual bool SupportsStaticLighting() const override { return false; }
 	//~ End UPrimitiveComponent Interface.
+
+	//~ Begin UVdbComponentBase Interface.
+	virtual bool UpdateSceneProxy(uint32 FrameIndex, class UVdbVolumeSequence* VdbSequence) override;
+#if WITH_EDITOR
+	virtual void UpdateSeqProperties(const UVdbSequenceComponent* SeqComponent) override;
+#endif
+	//~ End UVdbComponentBase Interface.
+
+	//const FVolumeRenderInfos* GetRenderInfos(UVdbVolumeBase* VdbVolume) const;
+
+	EVdbType GetVdbType() const;
+	void SetSeqComponents(UVdbSequenceComponent* CompDensity, UVdbSequenceComponent* CompTemperature) { SeqComponentDensity = CompDensity; SeqComponentTemperature = CompTemperature; }
+	const UVdbSequenceComponent* GetSeqComponentDensity() const { return SeqComponentDensity; }
+	const UVdbSequenceComponent* GetSeqComponentTemperature() const { return SeqComponentTemperature; }
 
 protected:
 
@@ -138,7 +155,8 @@ protected:
 
 private:
 
-	class FVdbSceneProxy* VdbSceneProxy;
+	UVdbSequenceComponent* SeqComponentDensity;
+	UVdbSequenceComponent* SeqComponentTemperature;
 };
 
 // VolumetricFog sparse data actor based on NanoVDB
@@ -157,6 +175,9 @@ private:
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Atmosphere, meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<class UVdbResearchComponent> VdbComponent;
 
-public:
+	UPROPERTY(BlueprintReadOnly, Category = Volumetric, VisibleAnywhere, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UVdbSequenceComponent> SeqDensComponent;
 
+	UPROPERTY(meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UVdbSequenceComponent> SeqTempComponent;
 };

@@ -48,6 +48,7 @@ void FVdbSequenceChunk::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSiz
 UVdbVolumeSequence::UVdbVolumeSequence(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	IsVolSequence = true;
 }
 
 // Mandatory so that we can use TUniquePtr with forward declarations in the header file
@@ -183,6 +184,11 @@ FString UVdbVolumeSequence::GetDesc()
 
 void UVdbVolumeSequence::FinishDestroy()
 {
+	for (int32 ChunkIndex : ChunksWithPendingUpload)
+	{
+		IVolumeStreamingManager::Get().UnmapChunk(this, ChunkIndex);
+	}
+
 	IVolumeStreamingManager::Get().RemoveVolume(this);
 
 	Super::FinishDestroy();
@@ -219,8 +225,12 @@ void UVdbVolumeSequence::OnChunkEvicted(uint32 ChunkId)
 
 void UVdbVolumeSequence::UpdateChunksNeeded(TArray<int32>& ChunksNeeded)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_UVdbVolumeSequence_UpdateChunksNeeded);
+
 	ChunksWithPendingUpload.RemoveAll([this, &ChunksNeeded](const int32& ChunkId)
 		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_UVdbVolumeSequence_UpdateChunksNeeded_Remove);
+
 			const uint32 FrameIdx = (uint32)ChunkId;		// SAMI - won't work if we don't have a 1-to-1 frame to chunk ratio
 			const FVolumeRenderInfos& VolRenderInfos = this->VolumeRenderInfos[FrameIdx];
 
@@ -252,6 +262,8 @@ void UVdbVolumeSequence::UpdateChunksNeeded(TArray<int32>& ChunksNeeded)
 
 void UVdbVolumeSequence::OnChunkAvailable(uint32 ChunkId)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(VolAnim_UVdbVolumeSequence_OnChunkAvailable);
+
 	const uint32 FrameIdx = (uint32)ChunkId;		// SAMI - won't work if we don't have a 1-to-1 frame to chunk ratio
 	FVdbSequenceChunk& Chunk = Chunks[ChunkId];
 

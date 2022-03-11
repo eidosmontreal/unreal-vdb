@@ -16,13 +16,15 @@
 #include "AssetData.h"
 
 #include "VdbComponent.h"
+#include "VdbSequenceComponent.h"
 #include "VdbVolume.h"
+#include "VdbVolumeSequence.h"
 
 
 UActorFactoryVdbVolume::UActorFactoryVdbVolume(const FObjectInitializer& ObjectInitializer)
 : Super(ObjectInitializer)
 {
-	DisplayName = FText::FromString( "Vdb Volume" );
+	DisplayName = FText::FromString("Vdb Actor");
 	NewActorClass = AVdbActor::StaticClass();
 	bUseSurfaceOrientation = true;
 	bShowInEditorQuickMenu = true;
@@ -35,7 +37,7 @@ bool UActorFactoryVdbVolume::CanCreateActorFrom(const FAssetData& AssetData, FTe
 		return true;
 	}
 
-	if (!AssetData.GetClass()->IsChildOf(UVdbVolume::StaticClass()))
+	if (!AssetData.GetClass()->IsChildOf(UVdbVolumeBase::StaticClass()))
 	{
 		OutErrorMsg = FText::FromString("A valid UVdbVolume must be specified.");
 		return false;
@@ -48,7 +50,7 @@ void UActorFactoryVdbVolume::PostSpawnActor(UObject* Asset, AActor* NewActor)
 {
 	Super::PostSpawnActor(Asset, NewActor);
 
-	UVdbVolume* VdbVolume = CastChecked<UVdbVolume>(Asset);
+	UVdbVolumeBase* VdbVolume = CastChecked<UVdbVolumeBase>(Asset);
 
 	// Change properties
 	AVdbActor* VdbActor = CastChecked<AVdbActor>(NewActor);
@@ -57,15 +59,31 @@ void UActorFactoryVdbVolume::PostSpawnActor(UObject* Asset, AActor* NewActor)
 	VdbComponent->UnregisterComponent();
 	VdbComponent->VdbVolume = VdbVolume;
 	VdbComponent->RegisterComponent();
+
+	UVdbVolumeSequence* VdbVolumeSequence = Cast<UVdbVolumeSequence>(Asset);
+	if (VdbVolumeSequence)
+	{
+		UVdbSequenceComponent* VdbSequenceComponent = VdbActor->GetSeqComponent();
+		VdbSequenceComponent->UnregisterComponent();
+		VdbSequenceComponent->SetVdbSequence(VdbVolumeSequence);
+		VdbSequenceComponent->RegisterComponent();
+	}
 }
 
 void UActorFactoryVdbVolume::PostCreateBlueprint(UObject* Asset, AActor* CDO)
 {
 	if (Asset != NULL && CDO != NULL)
 	{
-		UVdbVolume* VdbVolume = CastChecked<UVdbVolume>(Asset);
+		UVdbVolumeBase* VdbVolume = CastChecked<UVdbVolumeBase>(Asset);
 		AVdbActor* VdbActor = CastChecked<AVdbActor>(CDO);
 		UVdbComponent* VdbComponent = VdbActor->GetVdbComponent();
 		VdbComponent->VdbVolume = VdbVolume;
+
+		UVdbVolumeSequence* VdbVolumeSequence = Cast<UVdbVolumeSequence>(Asset);
+		if (VdbVolumeSequence)
+		{
+			UVdbSequenceComponent* VdbSequenceComponent = VdbActor->GetSeqComponent();
+			VdbSequenceComponent->SetVdbSequence(VdbVolumeSequence);
+		}
 	}
 }

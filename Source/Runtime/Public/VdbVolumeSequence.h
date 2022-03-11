@@ -87,7 +87,7 @@ public:
 
 	template<typename T>
 	const nanovdb::NanoGrid<T>* GetNanoGrid(uint32 FrameIndex) { return VolumeRenderInfos[FrameIndex].GetNanoGridHandle().grid<T>(); }
-	FVolumeRenderInfos& GetRenderInfos(uint32 FrameIndex) { return VolumeRenderInfos[FrameIndex]; }
+	virtual const FVolumeRenderInfos* GetRenderInfos(uint32 FrameIndex) const override { return &VolumeRenderInfos[FrameIndex]; }
 	bool IsGridDataInMemory(uint32 FrameIndex, bool CheckIsAlsoUploadedToGPU) const;
 
 	float GetTimeBetweenFramesInSeconds() const { return 0.0333333333333333333f; }
