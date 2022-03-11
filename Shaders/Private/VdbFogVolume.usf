@@ -127,7 +127,7 @@ float4 RaymarchFogVolume(
 		// Update coordinates
 		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, t, Ray.Direction);
 		float3 WorldPos = IndexToWorldPosition(iPos, LocalToWorld, buf, grid);
-		float3 TranslatedWorldPosition = WorldPos + ResolvedView.TranslatedWorldCameraOrigin; // override world position
+		float3 TranslatedWorldPosition = WorldPos + ResolvedView.RelativePreViewTranslation; // override world position
 
 		// Sample VDB volume
 		float Density = ReadValue(iPos, buf, grid_type, acc) * Medium.densityScale;

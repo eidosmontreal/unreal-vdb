@@ -85,7 +85,7 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 	pnanovdb_vec3_t iPos = pnanovdb_coord_to_vec3(HitResults.ijk_hit); // index/vdb space hit position
 	pnanovdb_vec3_t wPos = IndexToWorldPosition(iPos, LocalToWorld, grid_buf, grid);
 
-	float3 TranslatedWorldPosition = wPos + ResolvedView.TranslatedWorldCameraOrigin; // override world position
+	float3 TranslatedWorldPosition = wPos + ResolvedView.RelativePreViewTranslation; // override world position
 
 	float4 ClipPos = mul(float4(TranslatedWorldPosition, 1.0), ResolvedView.TranslatedWorldToClip);
 	float SceneDepth = ClipPos.z / ClipPos.w;
