@@ -79,6 +79,8 @@ This choice can be modified at any time with an asset reimport.
 
 You can also import a sequence of VDB files, if the plugin can detect a continuous file sequence.
 
+I recommend checking these [free VDB sequences from Embergen](https://jangafx.com/software/embergen/download/free-vdb-animations/), available under the CCO license. 
+
  ![VdbActor](Resources/import_sequence.gif)
  
  Sequences can be previewed in the editor, and played in-game depending on the selected options.
@@ -157,6 +159,13 @@ Cloud dataset provided by [Walt Disney Animation Studios](https://www.disneyanim
  
 [Cloud Stanford Bunny](https://artifacts.aswf.io/io/aswf/openvdb/models/bunny_cloud.vdb/1.0.0/bunny_cloud.vdb-1.0.0.zip), from the [OpenVDB repository](https://www.openvdb.org/download/)
 
+### Using the Sequencer and the Movie Render Queue
+
+For offline high-quality rendering, we recommenced using the [Sequencer and the Movie Render Queue](https://docs.unrealengine.com/4.27/en-US/RenderingAndGraphics/RayTracing/MovieRenderQueue/) with the [Path-tracer](https://docs.unrealengine.com/4.27/en-US/RenderingAndGraphics/RayTracing/PathTracer/#path-tracedrendersusingmovierenderqueue) to bake a sequence of output images. 
+The path-tracer is only compatible with `VdbResearchActor` for now.  
+
+> **Tip**: To animate the second `Temperature Volume` in the sequencer, first track the `Sequence components` of your `VdbResearchActor`, then add a `Vdb Sequence` property on each. 
+ ![VolumeMat](Resources/sequencer_VDB.png)
 
 ---
 ## Known limitations
