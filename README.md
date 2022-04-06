@@ -37,7 +37,7 @@ We provide direct support for (simplistic) realtime rendering with **Unreal mate
 - More traditional graphics integration (no materials) for faster iterations
 
 ## Installation
-Download the repo and copy it in your project `Plugins` folder. Unreal will need to be recompiled.
+Clone or download the repo and copy it in your project `Plugins` folder. Unreal will need to be recompiled.
 
 If you are not able to compile Unreal, you can alternatively use the precompiled binaries packages in [Releases](https://github.com/eidosmontreal/unreal-vdb/releases).
 
@@ -161,7 +161,7 @@ Cloud dataset provided by [Walt Disney Animation Studios](https://www.disneyanim
 
 ### Using the Sequencer and the Movie Render Queue
 
-For offline high-quality rendering, we recommenced using the [Sequencer and the Movie Render Queue](https://docs.unrealengine.com/4.27/en-US/RenderingAndGraphics/RayTracing/MovieRenderQueue/) with the [Path-tracer](https://docs.unrealengine.com/4.27/en-US/RenderingAndGraphics/RayTracing/PathTracer/#path-tracedrendersusingmovierenderqueue) to bake a sequence of output images. 
+For offline high-quality rendering, we recommend using the [Sequencer and the Movie Render Queue](https://docs.unrealengine.com/4.27/en-US/RenderingAndGraphics/RayTracing/MovieRenderQueue/) with the [Path-tracer](https://docs.unrealengine.com/4.27/en-US/RenderingAndGraphics/RayTracing/PathTracer/#path-tracedrendersusingmovierenderqueue) to bake a sequence of output images. 
 The path-tracer is only compatible with `VdbResearchActor` for now.  
 
 > **Tip**: To animate the second `Temperature Volume` in the sequencer, first track the `Sequence components` of your `VdbResearchActor`, then add a `Vdb Sequence` property on each. 

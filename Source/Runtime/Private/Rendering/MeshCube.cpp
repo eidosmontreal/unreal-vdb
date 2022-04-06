@@ -41,7 +41,7 @@ FCubeMeshVertexBuffer::FCubeMeshVertexBuffer()
 		const FDynamicMeshVertex& Vertex = Vertices[i];
 
 		Buffers.PositionVertexBuffer.VertexPosition(i) = Vertex.Position;
-		Buffers.StaticMeshVertexBuffer.SetVertexTangents(i, Vertex.TangentX.ToFVector(), Vertex.GetTangentY(), Vertex.TangentZ.ToFVector());
+		Buffers.StaticMeshVertexBuffer.SetVertexTangents(i, Vertex.TangentX.ToFVector3f(), Vertex.GetTangentY(), Vertex.TangentZ.ToFVector3f());
 		Buffers.StaticMeshVertexBuffer.SetVertexUV(i, 0, Vertex.TextureCoordinate[0]);
 		Buffers.ColorVertexBuffer.VertexColor(i) = Vertex.Color;
 	}

@@ -191,7 +191,7 @@ TRDGUniformBufferRef<FVdbResearchShaderParams> CreateVdbUniformBuffer(FRDGBuilde
 	UniformParameters->SamplesPerPixel = UsePathTracing ? 1 : Params.SamplesPerPixel;
 	UniformParameters->MaxRayDepth = Params.MaxRayDepth;
 	// Material Params
-	auto LinearColorToVector = [](const FLinearColor& Col) { return FVector(Col.R, Col.G, Col.B); };
+	auto LinearColorToVector = [](const FLinearColor& Col) { return FVector3f(Col.R, Col.G, Col.B); };
 	UniformParameters->Color = LinearColorToVector(Params.Color);
 	UniformParameters->DensityMult = Params.DensityMult;
 	UniformParameters->Albedo = Params.Albedo;
