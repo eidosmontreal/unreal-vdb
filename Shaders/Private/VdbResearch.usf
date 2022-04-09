@@ -26,6 +26,11 @@ uint				DisplayUnfinishedPaths;
 // Using Uniform Buffer VdbResearchParams
 
 #define RAYMARCH
+#if PATH_TRACING
+	#define SAMPLING TrilinearSampling
+#else
+	#define SAMPLING ReadValue
+#endif
 
 struct VdbSampler
 {
@@ -177,7 +182,7 @@ float4 RaymarchVolume(
 		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
 		pnanovdb_coord_t ijk = pnanovdb_hdda_pos_to_ijk(iPos);
 
-		float Density = ReadValue(s, Ray, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
+		float Density = SAMPLING(s, Ray, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
 
 		float SigmaT = Density * Medium.densityScale; // aka Density, aka Extinction
 		float Albedo = Medium.albedo;
@@ -208,7 +213,7 @@ float4 RaymarchVolume(
 
 #if USE_TEMPERATURE
 		// Blackbody emissive
-		float Temperature = ReadValue(s, Ray, TemperatureSampler.GridBuffer, TemperatureSampler.GridType, TemperatureSampler.Accessor) * VdbResearchParams.Temperature;
+		float Temperature = SAMPLING(s, Ray, TemperatureSampler.GridBuffer, TemperatureSampler.GridType, TemperatureSampler.Accessor) * VdbResearchParams.Temperature;
 		float3 TemperatureColor = ColorTemperatureToRGB(Temperature) * VdbResearchParams.BlackbodyTint * VdbResearchParams.BlackbodyIntensity;
 
 		Radiance += Transmittance * TemperatureColor * SigmaA * Dist;
@@ -303,7 +308,7 @@ float4 RandomWalkVolume(
 #if USE_TEMPERATURE
 		// Blackbody emissive
 		pnanovdb_coord_t ijk = pnanovdb_hdda_pos_to_ijk(iPos);
-		float Temperature = ReadValue(s, Ray, TemperatureSampler.GridBuffer, TemperatureSampler.GridType, TemperatureSampler.Accessor) * VdbResearchParams.Temperature;
+		float Temperature = SAMPLING(s, Ray, TemperatureSampler.GridBuffer, TemperatureSampler.GridType, TemperatureSampler.Accessor) * VdbResearchParams.Temperature;
 
 #if 0
 		// Stefan-Boltzman law

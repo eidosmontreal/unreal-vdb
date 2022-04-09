@@ -93,10 +93,39 @@ float ReadValueFloat(pnanovdb_vec3_t pos, pnanovdb_buf_t buf, pnanovdb_readacces
 	return ReadValueFloat(ijk, buf, acc);
 }
 
+// NearestNeighbor, Point sampling
 float ReadValue(float Step, VdbRay ray, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
 {
 	pnanovdb_vec3_t pos = pnanovdb_hdda_ray_start(ray.Origin, Step, ray.Direction);
 	return ReadValue(pos, buf, grid_type, acc);
+}
+
+float TrilinearSampling(float Step, VdbRay ray, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
+{
+	pnanovdb_vec3_t pos = pnanovdb_hdda_ray_start(ray.Origin, Step, ray.Direction);
+	pnanovdb_coord_t ijk = pnanovdb_hdda_pos_to_ijk(pos);
+	pnanovdb_vec3_t uvw = pos - ijk;
+
+	float Values[2][2][2];
+	Values[0][0][0] = ReadValue(ijk + pnanovdb_coord_t(0, 0, 0), buf, grid_type, acc);
+	Values[0][0][1] = ReadValue(ijk + pnanovdb_coord_t(0, 0, 1), buf, grid_type, acc);
+	Values[0][1][1] = ReadValue(ijk + pnanovdb_coord_t(0, 1, 1), buf, grid_type, acc);
+	Values[0][1][0] = ReadValue(ijk + pnanovdb_coord_t(0, 1, 0), buf, grid_type, acc);
+	Values[1][0][0] = ReadValue(ijk + pnanovdb_coord_t(1, 0, 0), buf, grid_type, acc);
+	Values[1][0][1] = ReadValue(ijk + pnanovdb_coord_t(1, 0, 1), buf, grid_type, acc);
+	Values[1][1][1] = ReadValue(ijk + pnanovdb_coord_t(1, 1, 1), buf, grid_type, acc);
+	Values[1][1][0] = ReadValue(ijk + pnanovdb_coord_t(1, 1, 0), buf, grid_type, acc);
+
+	return lerp(
+		lerp(
+			lerp(Values[0][0][0], Values[0][0][1], uvw[2]), 
+			lerp(Values[0][1][0], Values[0][1][1], uvw[2]), 
+		uvw[1]),
+		lerp(
+			lerp(Values[1][0][0], Values[1][0][1], uvw[2]), 
+			lerp(Values[1][1][0], Values[1][1][1], uvw[2]), 
+		uvw[1]), 
+	uvw[0]);
 }
 
 bool CheckBounds(inout VdbRay Ray, pnanovdb_vec3_t bbox_min, pnanovdb_vec3_t bbox_max)
