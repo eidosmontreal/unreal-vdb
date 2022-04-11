@@ -37,7 +37,7 @@ We provide direct support for (simplistic) realtime rendering with **Unreal mate
 - More traditional graphics integration (no materials) for faster iterations
 
 ## Installation
-Clone or download the repo and copy it in your project `Plugins` folder. Unreal will need to be recompiled.
+Download the repo and copy it in your project `Plugins` folder. Unreal will need to be recompiled.
 
 If you are not able to compile Unreal, you can alternatively use the precompiled binaries packages in [Releases](https://github.com/eidosmontreal/unreal-vdb/releases).
 
@@ -87,6 +87,7 @@ I recommend checking these [free VDB sequences from Embergen](https://jangafx.co
  
  ![VdbActor](Resources/sequence_play.gif)
  
+ <a name="sequencer_density"></a>
  We also added support for the Sequencer, allowing precise animation control from users.
  
  ![VdbActor](Resources/Sequencer.gif)
@@ -166,6 +167,9 @@ The path-tracer is only compatible with `VdbResearchActor` for now.
 
 > **Tip**: To animate the second `Temperature Volume` in the sequencer, first track the `Sequence components` of your `VdbResearchActor`, then add a `Vdb Sequence` property on each. 
  ![VolumeMat](Resources/sequencer_VDB.png)
+
+Edit: Based on popular demand, [here is a tutorial](TutorialSequencer.md) showing how to setup the sequencer correctly with the pathtracer. 
+
 
 ---
 ## Known limitations
