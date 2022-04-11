@@ -149,8 +149,8 @@ AVdbResearchActor::AVdbResearchActor(const FObjectInitializer& ObjectInitializer
 	: Super(ObjectInitializer)
 {
 	VdbComponent = CreateDefaultSubobject<UVdbResearchComponent>(TEXT("VdbComponent"));
-	SeqDensComponent = CreateDefaultSubobject<UVdbSequenceComponent>(TEXT("SeqComponent"));
-	SeqTempComponent = CreateDefaultSubobject<UVdbSequenceComponent>(TEXT("SeqTempComponent"));
+	SeqDensComponent = CreateDefaultSubobject<UVdbSequenceComponent>(TEXT("DensitySequenceComponent"));
+	SeqTempComponent = CreateDefaultSubobject<UVdbSequenceComponent>(TEXT("TemperatureSequenceComponent"));
 	RootComponent = VdbComponent;
 
 	// Force a 90deg rotation to fit with Unreal coordinate system (left handed, z-up)
