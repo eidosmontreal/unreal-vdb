@@ -47,7 +47,7 @@ void MainVS(in float4 InPosition : ATTRIBUTE0, out float4 OutPosition : SV_Posit
 	float4 VolPos = InPosition * float4(VdbResearchParams.VolumeScale, 1.0) + float4(VdbResearchParams.VolumeTranslation, 0.0);
 	float4 LocalPos = mul(VolPos, VdbResearchParams.VolumeToLocal);
 	float4 WorldPos = mul(LocalPos, VdbResearchParams.LocalToWorld);
-	OutPosition = mul(WorldPos, View.RelativeWorldToClip);
+	OutPosition = mul(WorldPos, LWCHackToFloat(PrimaryView.WorldToClip));
 }
 
 #elif defined(SHADER_PIXEL)
