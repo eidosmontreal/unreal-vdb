@@ -37,9 +37,34 @@ We provide direct support for (simplistic) realtime rendering with **Unreal mate
 - More traditional graphics integration (no materials) for faster iterations
 
 ## Installation
-Download the repo and copy it in your project `Plugins` folder. Unreal will need to be recompiled.
+
+### Programmers
+
+Clone the repo in your project `Plugins` folder. You may need to create the `Plugins` folder yourself. 
+
+Unreal will need to be recompiled.
+
+
+
+### Regular users
 
 If you are not able to compile Unreal, you can alternatively use the precompiled binaries packages in [Releases](https://github.com/eidosmontreal/unreal-vdb/releases).
+
+Recommended installation steps:
+* Download the latest precompiled package from [Releases](https://github.com/eidosmontreal/unreal-vdb/releases)
+* Create an Unreal5 project (or use your current project). Enable `Raytracing` if you plan on using the Pathtracer.
+* Close Unreal
+* Copy / Extract the plugin folder in your ***project*** `Plugins` folder. You will need to create a `Plugins` folder yourself if it doesn't exist already
+* Open your Unreal project
+* Unreal will ask you to rebuild the new modules. Click yes.
+* It should work now ! 
+
+Note that it is also possible to copy the plugin in your ***Unreal*** `Engine/Plugins` folder 
+(default install location is `C:/Program Files/Epic Games/UE_5.0/Engine/Plugins`.
+
+I also recommend watching [Winbush's great intro video](https://www.youtube.com/watch?v=iEclyxwCWaY&ab_channel=WINBUSH) ou Youtube.
+
+
 
 ---
 ## First steps
