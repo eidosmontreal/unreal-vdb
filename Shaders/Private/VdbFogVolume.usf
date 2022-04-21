@@ -85,6 +85,11 @@ float4 RaymarchFogVolume(
 	if (!Hit)
 		return float4(0.0, 0.0, 0.0, 0.0);
 
+	// Optional: eliminate void gap and offset to smaller values to get better float precision
+	Ray.Origin += Ray.TMin * Ray.Direction;
+	Ray.TMax -= Ray.TMin;
+	Ray.TMin = 0.0f;
+
 	// ------------------------------------------------------------------------------------------------------
 	// Speed up empty space traversal, and get accurate first intersection
 
@@ -127,7 +132,7 @@ float4 RaymarchFogVolume(
 		// Update coordinates
 		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, t, Ray.Direction);
 		float3 WorldPos = IndexToWorldPosition(iPos, LocalToWorld, buf, grid);
-		float3 TranslatedWorldPosition = WorldPos + ResolvedView.RelativePreViewTranslation; // override world position
+		float3 TranslatedWorldPosition = WorldPos + LWCHackToFloat(PrimaryView.PreViewTranslation); // override world position
 
 		// Sample VDB volume
 		float Density = ReadValue(iPos, buf, grid_type, acc) * Medium.densityScale;

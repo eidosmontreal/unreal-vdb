@@ -163,13 +163,15 @@ Segment getRayFromPixelCoord(uint2 ScreenPosition, uint2 ScreenDimensions, float
 	float2 ScreenPositionNorm = (ScreenPosition + 0.5f + Jitter) / float2(ScreenDimensions);
 	float2 ClipPosition = (ScreenPositionNorm - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 
-	DeviceZ = max(DeviceZ, 0.0001); // either no Z value, or too far to even consider
-	float4 Near = mul(float4(ClipPosition, 1, 1), View.ClipToRelativeWorld); // near (world space)
-	float4 Far = mul(float4(ClipPosition, DeviceZ, 1), View.ClipToRelativeWorld); // scene gbuffer (world space)
+	DeviceZ = max(DeviceZ, 0.000000000000001); // either no Z value, or too far to even consider
+	float4 Near = mul(float4(ClipPosition, 1, 1), View.ClipToTranslatedWorld); // near (world space)
+	float4 Far = mul(float4(ClipPosition, DeviceZ, 1), View.ClipToTranslatedWorld); // scene gbuffer (world space)
 
 	Segment Seg;
-	Seg.Start = Near.xyz / Near.w;
-	Seg.End = Far.xyz / Far.w;
+	Seg.Start = Near.xyz / Near.w; // Translated World 
+	Seg.Start -= LWCHackToFloat(PrimaryView.PreViewTranslation); // World
+	Seg.End = Far.xyz / Far.w; // Translated World
+	Seg.End -= LWCHackToFloat(PrimaryView.PreViewTranslation); // World
 	return Seg;
 }
 
@@ -188,7 +190,7 @@ VdbRay PrepareRayFromPixel(pnanovdb_buf_t grid_buf, pnanovdb_grid_handle_t grid,
 	Ray.Origin = Origin;
 	Ray.Direction = (End - Origin) / Dist;
 	Ray.TMin = 0.0001f;
-	Ray.TMax = Dist;
+	Ray.TMax = DeviceZ == 0.0 ? POSITIVE_INFINITY : Dist;
 
 	return Ray;
 }
