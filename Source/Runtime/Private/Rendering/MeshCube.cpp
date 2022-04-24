@@ -150,7 +150,13 @@ IMPLEMENT_TYPE_LAYOUT(FCubeMeshVertexFactoryShaderParameters);
 IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FCubeMeshVertexFactory, SF_Vertex, FCubeMeshVertexFactoryShaderParameters);
 
 IMPLEMENT_VERTEX_FACTORY_TYPE(FCubeMeshVertexFactory, "/Plugin/VdbVolume/Private/CubeVertexFactory.ush",
-	EVertexFactoryFlags::UsedWithMaterials |
-	EVertexFactoryFlags::SupportsDynamicLighting |
-	EVertexFactoryFlags::SupportsPositionOnly
+	EVertexFactoryFlags::UsedWithMaterials
+	| EVertexFactoryFlags::SupportsStaticLighting
+	| EVertexFactoryFlags::SupportsDynamicLighting
+	| EVertexFactoryFlags::SupportsPrecisePrevWorldPos
+	| EVertexFactoryFlags::SupportsPositionOnly
+	| EVertexFactoryFlags::SupportsCachingMeshDrawCommands
+	| EVertexFactoryFlags::SupportsPrimitiveIdStream
+	| EVertexFactoryFlags::SupportsRayTracing
+	| EVertexFactoryFlags::SupportsRayTracingDynamicGeometry
 );
