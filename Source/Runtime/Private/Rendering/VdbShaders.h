@@ -15,6 +15,7 @@
 #pragma once
 
 #include "MeshMaterialShader.h"
+#include "InstanceCulling/InstanceCullingMergedContext.h"
 
 THIRD_PARTY_INCLUDES_START
 #include <nanovdb/NanoVDB.h>
@@ -71,6 +72,7 @@ END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FVdbShaderParametersPS, )
 	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVdbShaderParams, VdbUniformBuffer)
+	SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FInstanceCullingGlobalUniforms, InstanceCulling)
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 

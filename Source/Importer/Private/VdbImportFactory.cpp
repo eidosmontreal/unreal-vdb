@@ -383,7 +383,7 @@ TArray<FString> UVdbImportFactory::ExtractVDBFilenamesForSequence(const FString&
 			}
 
 			HasIndexZero |= (Number == 0);
-			if (Number <= VBDFilenamesSorted.Num())
+			if (Number < VBDFilenamesSorted.Num())
 			{
 				VBDFilenamesSorted[Number] = std::move(UnsortedFilename);
 			}
