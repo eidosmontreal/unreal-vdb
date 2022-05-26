@@ -14,8 +14,8 @@
 
 #include "VolumeRuntimeModule.h"
 #include "VdbCommon.h"
-#include "Rendering/VdbRendering.h"
-#include "Rendering/VdbResearchRendering.h"
+#include "Rendering/VdbMaterialRendering.h"
+#include "Rendering/VdbPrincipledRendering.h"
 
 #include "Interfaces/IPluginManager.h"
 #include "ShaderCore.h"
@@ -40,8 +40,8 @@ void FVolumeRuntimeModule::ShutdownModule()
 
 	UnregisterVolumeTrackHandler(&VdbVolumeSequenceTrackHandler);
 
-	if (VdbRenderExtension) VdbRenderExtension->Release();
-	if (VdbRenderResearchMgr) VdbRenderResearchMgr->Release();
+	if (VdbMaterialRenderExtension) VdbMaterialRenderExtension->Release();
+	if (VdbPrincipledRenderExtension) VdbPrincipledRenderExtension->Release();
 }
 
 FVolumeRuntimeModule::TRenderExtensionPtr FVolumeRuntimeModule::GetRenderExtension()
@@ -53,29 +53,29 @@ FVolumeRuntimeModule::TRenderExtensionPtr FVolumeRuntimeModule::GetRenderExtensi
 
 FVolumeRuntimeModule::TRenderExtensionPtr FVolumeRuntimeModule::GetOrCreateRenderExtension()
 {
-	if (!VdbRenderExtension.IsValid())
+	if (!VdbMaterialRenderExtension.IsValid())
 	{
-		VdbRenderExtension = FSceneViewExtensions::NewExtension<FVdbRendering>();
-		VdbRenderExtension->Init();
+		VdbMaterialRenderExtension = FSceneViewExtensions::NewExtension<FVdbMaterialRendering>();
+		VdbMaterialRenderExtension->Init();
 	}
-	return VdbRenderExtension;
+	return VdbMaterialRenderExtension;
 }
 
-FVolumeRuntimeModule::TRenderResearchPtr FVolumeRuntimeModule::GetRenderReseachMgr()
+FVolumeRuntimeModule::TRenderPrincipledPtr FVolumeRuntimeModule::GetRenderPrincipledMgr()
 {
 	static const FName ModuleName = "VolumeRuntime";
 	auto& ModuleInterface = FModuleManager::LoadModuleChecked<FVolumeRuntimeModule>(ModuleName);
-	return ModuleInterface.GetOrCreateRenderResearchMgr();
+	return ModuleInterface.GetOrCreateRenderPrincipledMgr();
 }
 
-FVolumeRuntimeModule::TRenderResearchPtr FVolumeRuntimeModule::GetOrCreateRenderResearchMgr()
+FVolumeRuntimeModule::TRenderPrincipledPtr FVolumeRuntimeModule::GetOrCreateRenderPrincipledMgr()
 {
-	if (!VdbRenderResearchMgr.IsValid())
+	if (!VdbPrincipledRenderExtension.IsValid())
 	{
-		VdbRenderResearchMgr = FSceneViewExtensions::NewExtension<FVdbResearchRendering>();
-		VdbRenderResearchMgr->Init();
+		VdbPrincipledRenderExtension = FSceneViewExtensions::NewExtension<FVdbPrincipledRendering>();
+		VdbPrincipledRenderExtension->Init();
 	}
-	return VdbRenderResearchMgr;
+	return VdbPrincipledRenderExtension;
 }
 
 

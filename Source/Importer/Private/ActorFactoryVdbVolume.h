@@ -22,7 +22,7 @@
 class AActor;
 struct FAssetData;
 
-// Factory class for spawning and creating AVdbActor from UVdbVolume
+// Factory class for spawning and creating AVdbMaterialActor from UVdbVolume
 UCLASS(MinimalAPI, config = Editor)
 class UActorFactoryVdbVolume : public UActorFactory
 {

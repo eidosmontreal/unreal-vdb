@@ -1,0 +1,103 @@
+// Copyright 2022 Eidos-Montreal / Eidos-Sherbrooke
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http ://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "/Engine/Private/Common.ush"
+#include "/Plugin/VdbVolume/Private/VdbCommon.ush"
+
+float3 VolumeOffset;
+float3 VolumeSize;
+int3 TextureSize;
+StructuredBuffer<uint> VdbPrimary;
+StructuredBuffer<uint> VdbSecondary;
+#if PACKING_MODE == 0 || PACKING_MODE == 1
+	RWTexture3D<float> OutputTexture;
+#elif PACKING_MODE == 4 || PACKING_MODE == 5
+	RWTexture3D<float2> OutputTexture;
+#elif PACKING_MODE == 2 || PACKING_MODE == 3 || PACKING_MODE == 6 || PACKING_MODE == 7
+	RWTexture3D<float4> OutputTexture;
+#else
+	#error
+#endif
+
+pnanovdb_readaccessor_t PrepareVdbVolume(pnanovdb_buf_t GridBuffer, out pnanovdb_uint32_t GridType)
+{
+	pnanovdb_address_t Address; Address.byte_offset = 0;
+	pnanovdb_grid_handle_t Grid; Grid.address = Address;
+	pnanovdb_tree_handle_t Tree = pnanovdb_grid_get_tree(GridBuffer, Grid);
+	pnanovdb_root_handle_t Root = pnanovdb_tree_get_root(GridBuffer, Tree);
+
+	GridType = pnanovdb_grid_get_grid_type(GridBuffer, Grid);
+
+	pnanovdb_readaccessor_t Acc;
+	pnanovdb_readaccessor_init(Acc, Root);
+
+	return Acc;
+}
+
+float SampleVdbFloat(pnanovdb_buf_t GridBuffer, int3 Index)
+{
+	pnanovdb_uint32_t GridType;
+	pnanovdb_readaccessor_t Acc = PrepareVdbVolume(GridBuffer, GridType);
+	return ReadValue(Index, GridBuffer, GridType, Acc);
+}
+
+float3 SampleVdbVector3(pnanovdb_buf_t GridBuffer, int3 Index)
+{
+	pnanovdb_uint32_t GridType;
+	pnanovdb_readaccessor_t Acc = PrepareVdbVolume(GridBuffer, GridType);
+	return ReadValueVec3f(Index, GridBuffer, GridType, Acc);
+}
+
+float4 SampleVdbVector4(pnanovdb_buf_t GridBuffer, int3 Index)
+{
+	pnanovdb_uint32_t GridType;
+	pnanovdb_readaccessor_t Acc = PrepareVdbVolume(GridBuffer, GridType);
+	return ReadValueVec4f(Index, GridBuffer, GridType, Acc);
+}
+
+[numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, THREADGROUP_SIZE)]
+void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
+{
+	uint3 LaunchIndex = DispatchThreadId.xyz;
+
+	if (all(LaunchIndex < uint3(TextureSize))) 
+	{
+		OutputTexture[LaunchIndex] = 0;
+	}
+
+	if (any(LaunchIndex >= uint3(VolumeSize))) return;
+	
+	int3 VolumeIndex = int3(LaunchIndex) + int3(VolumeOffset);
+
+#if PACKING_MODE == 0 || PACKING_MODE == 1
+	float Primary = SampleVdbFloat(VdbPrimary, VolumeIndex);
+	OutputTexture[LaunchIndex] = Primary;
+#elif PACKING_MODE == 2
+	float3 Primary = SampleVdbVector3(VdbPrimary, VolumeIndex);
+	OutputTexture[LaunchIndex] = float4(Primary, 1.0);
+#elif PACKING_MODE == 3
+	float4 Primary = SampleVdbVector4(VdbPrimary, VolumeIndex);
+	OutputTexture[LaunchIndex] = Primary;
+#elif PACKING_MODE == 4 || PACKING_MODE == 5
+	float Primary = SampleVdbFloat(VdbPrimary, VolumeIndex);
+	float Secondary = SampleVdbFloat(VdbSecondary, VolumeIndex);
+	OutputTexture[LaunchIndex] = float2(Primary, Secondary);
+#elif PACKING_MODE == 6 || PACKING_MODE == 7
+	float Primary = SampleVdbFloat(VdbPrimary, VolumeIndex);
+	float3 Secondary = SampleVdbVector3(VdbSecondary, VolumeIndex);
+	OutputTexture[LaunchIndex] = float4(Secondary, Primary);
+#else
+	#error
+#endif
+}

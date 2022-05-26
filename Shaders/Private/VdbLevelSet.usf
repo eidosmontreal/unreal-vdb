@@ -22,7 +22,7 @@
 
 #include "/Plugin/VdbVolume/Private/VdbCommon.ush"
 
-StructuredBuffer<uint> VdbBuffer;
+StructuredBuffer<uint> PrimaryVdbBuffer;
 
 //-----------------------------------------------------------------------------------------------------------
 //#if PIXELSHADER
@@ -46,11 +46,11 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 	pnanovdb_address_t address; address.byte_offset = 0;
 	pnanovdb_grid_handle_t grid; grid.address = address;
 
-	pnanovdb_buf_t grid_buf = VdbBuffer;
+	pnanovdb_buf_t grid_buf = PrimaryVdbBuffer;
 	pnanovdb_tree_handle_t tree = pnanovdb_grid_get_tree(grid_buf, grid);
 	pnanovdb_uint32_t grid_type = pnanovdb_grid_get_grid_type(grid_buf, grid);
 
-	pnanovdb_buf_t root_buf = VdbBuffer;
+	pnanovdb_buf_t root_buf = PrimaryVdbBuffer;
 	pnanovdb_root_handle_t root = pnanovdb_tree_get_root(root_buf, tree);
 
 	pnanovdb_readaccessor_t acc;
@@ -137,12 +137,7 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 	Lighting += Albedo * GetSkySHDiffuse(wNormal) * ResolvedView.SkyLightColor.rgb;
 #endif
 
-#if USE_PREEXPOSURE
-	const float PreExposure = View.PreExposure;
-#else
-	const float PreExposure = 1.f;
-#endif
-
-	OutColor0 = float4((AmbientOcclusion * Lighting + EmissiveColor) * PreExposure, 1.0);
+	float Exposure = ResolvedView.RealTimeReflectionCapture ? ResolvedView.RealTimeReflectionCapturePreExposure : ResolvedView.PreExposure;
+	OutColor0 = float4((AmbientOcclusion * Lighting + EmissiveColor) * Exposure, 1.0);
 	OutDepth = SceneDepth;
 }

@@ -14,25 +14,62 @@
 
 #include "/Engine/Public/Platform.ush"
 #include "/Engine/Private/Common.ush"
-#include "/Engine/Generated/Material.ush"
-#include "/Engine/Generated/VertexFactory.ush"
+#include "/Engine/Private/Random.ush"
 #include "/Engine/Private/ReflectionEnvironmentShared.ush"
 
+#include "/Engine/Generated/Material.ush"
+#include "/Engine/Generated/VertexFactory.ush"
 #include "/Plugin/VdbVolume/Private/VdbCommon.ush"
 
-float DensityMult;
-float StepMultiplier;
-StructuredBuffer<uint>	VdbBuffer;
+int4 CustomIntData0;
+float4 CustomFloatData0;
+float4 CustomFloatData1;
+StructuredBuffer<uint>	PrimaryVdbBuffer;
+StructuredBuffer<uint>	SecondaryVdbBuffer;
+
+// I can't make a custom MaterialExpression from a plugin. 
+// It's far from ideal but I have to adapt and use a 
+// mix of material params, and component params.
+#define MAX_NUM_STEPS uint(CustomIntData0.x)
+#define SAMPLES_PER_PIXEL uint(CustomIntData0.y)
+#define SAMPLES_PER_PIXEL_FLOAT float(CustomIntData0.y)
+
+#define LOCAL_STEP_SIZE CustomFloatData0.x
+#define SHADOW_STEP_SIZE_MULT CustomFloatData0.y
+#define VOXEL_SIZE CustomFloatData0.z
+
+#define ANISOTROPY CustomFloatData1.x
+#define ALBEDO CustomFloatData1.y
+#define BLACKBODY_INTENSITY CustomFloatData1.z
+#define BLACKBODY_TEMPERATURE CustomFloatData1.w
+
+#ifdef USE_TRILINEAR_SAMPLING
+	#define SAMPLING TrilinearSampling
+#else
+	#define SAMPLING ReadValue
+#endif
 
 //-----------------------------------------------------------------------------------------------------------
 // Unreal Volumetric Material specific
 //-----------------------------------------------------------------------------------------------------------
 
+void UpdateMaterialParam(
+	inout FMaterialPixelParameters MaterialParameters,
+	float3 AbsoluteWorldPosition,
+	in ViewState InputView)
+{
+	MaterialParameters.AbsoluteWorldPosition = LWCPromote(AbsoluteWorldPosition);
+	MaterialParameters.WorldPosition_CamRelative = LWCToFloat(LWCAdd(MaterialParameters.AbsoluteWorldPosition, InputView.PreViewTranslation));
+	//MaterialParameters.WorldPosition_NoOffsets;				// TODO
+	//MaterialParameters.WorldPosition_NoOffsets_CamRelative;	// TODO
+	MaterialParameters.CameraVector = normalize(LWCToFloat(LWCSubtract(InputView.WorldCameraOrigin, MaterialParameters.AbsoluteWorldPosition)));
+}
+
 half3 SampleExtinctionCoefficients(in FPixelMaterialInputs PixelMaterialInputs)
 {
-	half3 Extinction = 1.0f;
-	Extinction = GetMaterialSubsurfaceDataRaw(PixelMaterialInputs).rgb;
-	return clamp(Extinction, 0.0f, 65000.0f);
+	// w value is not set. don't try to use it
+	half3 Extinction = GetMaterialSubsurfaceDataRaw(PixelMaterialInputs).xyz;
+	return Extinction;
 }
 
 half3 SampleEmissive(in FPixelMaterialInputs PixelMaterialInputs)
@@ -41,19 +78,63 @@ half3 SampleEmissive(in FPixelMaterialInputs PixelMaterialInputs)
 	return clamp(EmissiveColor, 0.0f, 65000.0f);
 }
 
+// RGB is albedo aka scattering for volumes, A is volume albedo
 half3 SampleAlbedo(in FPixelMaterialInputs PixelMaterialInputs)
 {
-	float3 Albedo = 0.5f;
+	half3 Albedo = 1.0;
 #if !MATERIAL_SHADINGMODEL_UNLIT
-	Albedo = GetMaterialBaseColor(PixelMaterialInputs) * View.DiffuseOverrideParameter.w + View.DiffuseOverrideParameter.xyz;
+	Albedo = GetMaterialBaseColorRaw(PixelMaterialInputs) * View.DiffuseOverrideParameter.w + View.DiffuseOverrideParameter.xyz;
 #endif
-	return saturate(Albedo);
+	return Albedo;
 }
 
+// Unused for now
 half SampleAmbientOcclusion(in FPixelMaterialInputs PixelMaterialInputs)
 {
-	half AO = GetMaterialAmbientOcclusion(PixelMaterialInputs);
-	return AO;
+	return GetMaterialAmbientOcclusion(PixelMaterialInputs);
+}
+
+// Raymarch towards light. Compute shadow transmittance
+float3 GetLightTransmittance(
+	pnanovdb_vec3_t bbox_min,
+	pnanovdb_vec3_t bbox_max,
+	VdbRay Ray,
+	VdbSampler DensitySampler,
+	float3 SigmaT,
+	float4x4 LocalToWorld,
+	in out RandomSequence RandSequence,
+	FMaterialPixelParameters MaterialParameters)
+{
+	pnanovdb_bool_t hit = pnanovdb_hdda_ray_clip(bbox_min, bbox_max, Ray.Origin, Ray.TMin, Ray.Direction, Ray.TMax);
+	if (!hit)
+		return 1.0f;
+
+	float RaymarchDistance = Ray.TMax - Ray.TMin;
+	float StepSize = (LOCAL_STEP_SIZE * SHADOW_STEP_SIZE_MULT) / VOXEL_SIZE; // Index Space
+	const uint NumSteps = min(ceil(RaymarchDistance / StepSize), MAX_NUM_STEPS);
+	float StepWorldMeters = StepSize * CENTIMETER_TO_METER;
+
+	FPixelMaterialInputs PixelMaterialInputs = (FPixelMaterialInputs)0;
+
+	float AccumDensity = 0.0;
+	for (uint iStep = 0; iStep < NumSteps; ++iStep)
+	{
+		float s = Ray.TMin + (iStep + RandomSequence_GenerateSample1D(RandSequence)) * StepSize;
+		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
+
+		// Update coordinates
+		float3 WorldPos = IndexToWorldPosition(iPos, LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
+		// Update Material parameters
+		UpdateMaterialParam(MaterialParameters, WorldPos, ResolvedView);
+		// Sample material
+		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
+		// Only sample Extinction
+		half3 Extinction = SampleExtinctionCoefficients(PixelMaterialInputs);
+
+		float Density = ReadValue(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
+		AccumDensity += UpdateDensity(Density, Extinction);
+	}
+	return exp(-AccumDensity * StepWorldMeters * SigmaT);
 }
 
 //-----------------------------------------------------------------------------------------------------------
@@ -61,136 +142,131 @@ half SampleAmbientOcclusion(in FPixelMaterialInputs PixelMaterialInputs)
 //-----------------------------------------------------------------------------------------------------------
 
 float4 RaymarchFogVolume(
-	pnanovdb_buf_t buf,
-	pnanovdb_uint32_t grid_type,
-	pnanovdb_readaccessor_t acc,
+	VdbSampler DensitySampler,
+#if USE_SECONDARY_VDB
+	VdbSampler TemperatureSampler,
+#endif
 	pnanovdb_vec3_t bbox_min,
 	pnanovdb_vec3_t bbox_max,
 
 	VdbRay Ray,
-	HeterogenousMedium Medium,
 	RandomSequence RandSequence,
 	FMaterialPixelParameters MaterialParameters,
 	float4x4 LocalToWorld,
 	float4x4 WorldToLocal,
 	float4 SvPosition)
 {
-	pnanovdb_address_t address; address.byte_offset = 0;
-	pnanovdb_grid_handle_t grid; grid.address = address;
-
-	// ------------------------------------------------------------------------------------------------------
+	// ------------------------------------------------------------------------
 	// Test against volume, and update Ray start/end to fit volume
 
-	pnanovdb_bool_t Hit = pnanovdb_hdda_ray_clip(bbox_min, bbox_max, Ray.Origin, Ray.TMin, Ray.Direction, Ray.TMax);
-	if (!Hit)
+	if (!CheckBounds(Ray, bbox_min, bbox_max))
 		return float4(0.0, 0.0, 0.0, 0.0);
 
-	// Optional: eliminate void gap and offset to smaller values to get better float precision
-	Ray.Origin += Ray.TMin * Ray.Direction;
-	Ray.TMax -= Ray.TMin;
-	Ray.TMin = 0.0f;
-
-	// ------------------------------------------------------------------------------------------------------
-	// Speed up empty space traversal, and get accurate first intersection
-
-	float Val = 0;
-	if (!GetFirstIntersection(grid_type, buf, acc, Ray, Val, Medium))
-		return float4(0.0, 0.0, 0.0, 0.0);
+	// ------------------------------------------------------------------------
+	// Set up lighting
 
 	float Transmittance = 1.f;
 	float3 Radiance = 0.0;
 
-	// ------------------------------------------------------------------------------------------------------
-	// Set up lighting
-
 #if !MATERIAL_SHADINGMODEL_UNLIT
-	float3 LightDir = WorldToIndexDirection(View.DirectionalLightDirection, WorldToLocal, buf, grid); // Index space
-	float3 LightCol = View.DirectionalLightColor;
+	float3 LightDir = WorldToIndexDirection(View.DirectionalLightDirection, WorldToLocal, DensitySampler.GridBuffer, DensitySampler.Grid); // Index space
+	float3 LightCol = View.DirectionalLightColor.rgb;
+	float CosThetaPhase = dot(LightDir, Ray.Direction);
 
-	// Compute fake ambient/environment lighting term
-	float3 FirstHitPos = pnanovdb_hdda_ray_start(Ray.Origin, Ray.TMin, Ray.Direction); // Index space
-	float3 BoxCenter = 0.5 * (bbox_max + bbox_min);
-	float3 iPseudoDir = normalize(FirstHitPos - BoxCenter);
-	float3 wPseudoDir = IndexToWorldDirection(iPseudoDir, LocalToWorld, buf, grid);
-	float3 EnvLight = GetSkySHDiffuse(wPseudoDir) * ResolvedView.SkyLightColor.rgb;
+	float3 EnvLight = GetSkySHDiffuseSimple(float3(0.0f, 0.0f, 0.0f)); // without SH directionality
 #endif
 
-	// ------------------------------------------------------------------------------------------------------
-	// Raymarch, using ratio tracking
+	// ------------------------------------------------------------------------
+	// Raymarch with fixed steps
 
-	float DensityMaxInv = 1.0f / Medium.densityMax;
-	float DensityMaxInvMultStep = DensityMaxInv * StepMultiplier;
-	float t = Ray.TMin;
-	int Steps = 0;
+	float StepSize = LOCAL_STEP_SIZE / VOXEL_SIZE; // Index space
+	float RaymarchDistance = Ray.TMax - Ray.TMin; // Index space
+	const uint NumSteps = min(ceil(RaymarchDistance / StepSize), MAX_NUM_STEPS);
+	float StepWorldMeters = StepSize * CENTIMETER_TO_METER;
 
-	while (Steps++ < 10000) // hard-coded (but very high) limit in case we're not converging
+	FPixelMaterialInputs PixelMaterialInputs = (FPixelMaterialInputs)0;
+
+	for (uint iStep = 0; iStep < NumSteps; ++iStep)
 	{
-		t += DensityMaxInvMultStep * (RandomSequence_GenerateSample1D(RandSequence) + 0.5);
-		if (t >= Ray.TMax)
-			break;
+		float s = Ray.TMin + (iStep + RandomSequence_GenerateSample1D(RandSequence)) * StepSize;
+		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
 
 		// Update coordinates
-		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, t, Ray.Direction);
-		float3 WorldPos = IndexToWorldPosition(iPos, LocalToWorld, buf, grid);
-		float3 TranslatedWorldPosition = WorldPos + LWCHackToFloat(PrimaryView.PreViewTranslation); // override world position
-
-		// Sample VDB volume
-		float Density = ReadValue(iPos, buf, grid_type, acc) * Medium.densityScale;
-
-		// Sample Material at current Ray position.
-		FPixelMaterialInputs PixelMaterialInputs;
-		CalcMaterialParametersEx(MaterialParameters, PixelMaterialInputs, SvPosition, SvPosition, true, TranslatedWorldPosition, TranslatedWorldPosition);
+		float3 WorldPos = IndexToWorldPosition(iPos, LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
+		// Update Material parameters
+		UpdateMaterialParam(MaterialParameters, WorldPos, ResolvedView);
+		// Sample material
+		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
+		// Sample Material
 		half3 EmissiveColor = SampleEmissive(PixelMaterialInputs);
 		half3 Extinction = SampleExtinctionCoefficients(PixelMaterialInputs);
-		half3 Albedo = SampleAlbedo(PixelMaterialInputs);
-		half AmbientOcclusion = SampleAmbientOcclusion(PixelMaterialInputs);
+		half3 Scattering = SampleAlbedo(PixelMaterialInputs);
+		const float Albedo = ALBEDO;
+		const float Anisotropy = ANISOTROPY;
 
-		// Use extinction parameter from Unreal material as a multiplier on VDB Density (arbitrary)
-		Density *= Extinction.r;
-		
-		// Update Transmittance
-		float StepTransmittance = Transmittance * Density * DensityMaxInv;
-		Transmittance *= 1.0f - Density * DensityMaxInv;
+		float Density = SAMPLING(s, Ray, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
+		Density = UpdateDensity(Density, Extinction);
+		if (Density == 0.0) continue; 
 
-		// Update total radiance
-		if (Density > 0.0)
-		{
-			Radiance += StepTransmittance * EmissiveColor; // Emissive
+		// Compute scattering and absorption coefficients
+		float3 SigmaT = Scattering; // Extinction
+		float3 SigmaS = SigmaT * Albedo; // Scattering
+		float3 SigmaA = SigmaT - SigmaS; // Absorption
+
+		// ------------------------------------------------------------------------
+		// Update total Radiance with all incoming ligth sources
+
+		float StepTransmittance = Transmittance * StepWorldMeters * Density;
+
+		Radiance += StepTransmittance * SigmaA * EmissiveColor; // Emissive
 #if !MATERIAL_SHADINGMODEL_UNLIT
-			// Only support single directional lighting. Still really expensive.
-			#ifndef IGNORE_DIR_LIGHT
-			{
-				VdbRay ShadowRay;
-				ShadowRay.Origin = iPos; // Index space
-				ShadowRay.Direction = LightDir; // Index space
-				ShadowRay.TMin = 0.0001f;
-				ShadowRay.TMax = POSITIVE_INFINITY;
+		Radiance += StepTransmittance * SigmaS * EnvLight; // Ambient
 
-				float ShadowTransmittance = GetTransmittance(bbox_min, bbox_max, ShadowRay, buf, grid_type, acc, Medium, 4.0 * StepMultiplier, RandSequence);
-				Radiance += StepTransmittance * AmbientOcclusion * Albedo * ShadowTransmittance * LightCol;
-			}
-			#endif
-			Radiance += StepTransmittance * AmbientOcclusion * Albedo * EnvLight; // Ambient
-#endif
+		// Only support single directional lighting.
+		{
+			VdbRay ShadowRay;
+			ShadowRay.Origin = iPos; // Index space
+			ShadowRay.Direction = LightDir; // Index space
+			ShadowRay.TMin = 0.0f;
+			ShadowRay.TMax = POSITIVE_INFINITY;
+
+			float LightTransmittance = GetLightTransmittance(
+				bbox_min, bbox_max, ShadowRay, 
+				DensitySampler, SigmaT, 
+				LocalToWorld, RandSequence, MaterialParameters);
+			Radiance += StepTransmittance * SigmaS * LightTransmittance * LightCol * PhaseHG(CosThetaPhase, Anisotropy);
 		}
+#endif
 
-		// Early quit as early as possible, to speed up rendering. Ideal value is 0.01.
-		if (Transmittance < 0.4f)
+#if USE_SECONDARY_VDB
+		// Second VDB buffer should be Temperature to simulate a blackbody volume
+		float Temperature = ReadValue(iPos, TemperatureSampler.GridBuffer, TemperatureSampler.GridType, TemperatureSampler.Accessor) * BLACKBODY_TEMPERATURE;
+		float3 TemperatureColor = ColorTemperatureToRGB(Temperature) * BLACKBODY_INTENSITY;
+
+		Radiance += StepTransmittance * SigmaA * TemperatureColor;
+#endif
+
+		// Update Transmittance
+		Transmittance *= exp(-StepWorldMeters * Density * SigmaT);
+
+		const float Threshhold = 0.01f;
+		if (all(Transmittance < Threshhold))
 		{
 #if !MATERIAL_SHADINGMODEL_UNLIT
-			Radiance += 0.4 * Albedo * EnvLight; // Artificially boosting missing ambient contribution
+			// Artificially boosting missing ambient contribution. I'm making this up.
+			Radiance += Threshhold * SigmaS * EnvLight; 
 #endif
 			Transmittance = 0.0;
 			break;
 		}
 	}
 	
-	return float4(Radiance, 1.0 - Transmittance);
+	return float4(Radiance, 1.0 - Average(Transmittance));
 }
 
-//-----------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 //#if PIXELSHADER
-//-----------------------------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
 
 void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position, 
 	in FVertexFactoryInterpolantsVSToPS FactoryInterpolants, 
@@ -207,66 +283,54 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 
 	float DeviceZ = VdbParams.SceneDepthTexture.Load(int3(SvPosition.xy, 0)).x; // backbuffer depth
 
-	// ------------------------------------------------------------------------------------------------------
+	// ------------------------------------------------------------------------
 	// Prepare NanoVDB
 
-	pnanovdb_address_t address; address.byte_offset = 0;
-	pnanovdb_grid_handle_t grid; grid.address = address;
+	VdbSampler DensitySampler = InitVdbSampler(PrimaryVdbBuffer);
+#if USE_SECONDARY_VDB
+	VdbSampler TemperatureSampler = InitVdbSampler(SecondaryVdbBuffer);
+#endif
 
-	pnanovdb_buf_t grid_buf = VdbBuffer;
-	pnanovdb_tree_handle_t tree = pnanovdb_grid_get_tree(grid_buf, grid);
-	pnanovdb_buf_t root_buf = VdbBuffer;
-	pnanovdb_root_handle_t root = pnanovdb_tree_get_root(root_buf, tree);
+	// Global values (could be computed on CPU, and passed to shader instead)
+	pnanovdb_vec3_t bbox_min = pnanovdb_coord_to_vec3(pnanovdb_root_get_bbox_min(DensitySampler.GridBuffer, DensitySampler.Root));
+	pnanovdb_vec3_t bbox_max = pnanovdb_coord_to_vec3(pnanovdb_root_get_bbox_max(DensitySampler.GridBuffer, DensitySampler.Root));
 
-	pnanovdb_uint32_t grid_type = pnanovdb_grid_get_grid_type(grid_buf, grid);
-	float root_min_val = pnanovdb_read_float(root_buf, pnanovdb_root_get_min_address(grid_type, grid_buf, root));
-	float root_max_val = pnanovdb_read_float(root_buf, pnanovdb_root_get_max_address(grid_type, grid_buf, root));
-
-	pnanovdb_vec3_t bbox_min = pnanovdb_coord_to_vec3(pnanovdb_root_get_bbox_min(root_buf, root));
-	pnanovdb_vec3_t bbox_max = pnanovdb_coord_to_vec3(pnanovdb_root_get_bbox_max(root_buf, root));
-
-	pnanovdb_readaccessor_t acc;
-	pnanovdb_readaccessor_init(acc, root);
-
-	// ------------------------------------------------------------------------------------------------------
+	// ------------------------------------------------------------------------
 	// Prepare variables
-
-	HeterogenousMedium Medium;
-	Medium.densityScale = DensityMult;
-	Medium.densityMin = root_min_val * Medium.densityScale;
-	Medium.densityMax = root_max_val * Medium.densityScale;
-	Medium.anisotropy = 0.0;
-	Medium.albedo = 0.8;
 
 	float4 Radiance = 0.0;
 
 	uint LinearIndex = SvPosition.y * ResolvedView.BufferSizeAndInvSize.x + SvPosition.x;
 
-	// ------------------------------------------------------------------------------------------------------
+	// ------------------------------------------------------------------------
 	// Trace rays and accumulate
 	
-	for (uint SampleIndex = 0; SampleIndex < VdbParams.SamplesPerPixel; ++SampleIndex)
+	for (uint SampleIndex = 0; SampleIndex < SAMPLES_PER_PIXEL; ++SampleIndex)
 	{
 		RandomSequence RandSequence;
 		RandomSequence_Initialize(RandSequence, LinearIndex, SampleIndex);
 
-		float2 Jitter = 0; // RandomSequence_GenerateSample2D(RandSequence) - 0.5;
-		VdbRay iRay = PrepareRayFromPixel(grid_buf, grid, SvPosition.xy, ResolvedView.BufferSizeAndInvSize.xy, Jitter, DeviceZ, WorldToLocal); // index/vdb space
+		float2 Jitter = (SampleIndex > 0) ? RandomSequence_GenerateSample2D(RandSequence) - 0.5 : 0.0;
+		VdbRay iRay = PrepareRayFromPixel(DensitySampler.GridBuffer, DensitySampler.Grid, SvPosition.xy, ResolvedView.BufferSizeAndInvSize.xy, Jitter, DeviceZ, WorldToLocal); // index/vdb space
 
-#ifdef USER_DEFINED_FOG
-		// User must provide this function in a custom node (HLSL) in Unreal material editor
-		Radiance += UserDefined_NanoVdbSampling(grid_buf, grid_type, acc, bbox_min, bbox_max, iRay.Origin, iRay.TMin, iRay.Direction, iRay.TMax, Medium, RandSequence, MaterialParameters, LocalToWorld, WorldToLocal, SvPosition);
-#else
-		Radiance += RaymarchFogVolume(grid_buf, grid_type, acc, bbox_min, bbox_max, iRay, Medium, RandSequence, MaterialParameters, LocalToWorld, WorldToLocal, SvPosition);
-#endif
+		Radiance += RaymarchFogVolume(
+							DensitySampler,
+							#if USE_SECONDARY_VDB
+								TemperatureSampler,
+							#endif
+							bbox_min, bbox_max, iRay, 
+							RandSequence, MaterialParameters, 
+							LocalToWorld, WorldToLocal, SvPosition);
 	}
 
-	Radiance /= VdbParams.SamplesPerPixel;
+	Radiance /= SAMPLES_PER_PIXEL_FLOAT;
 
 	if (Radiance.a == 0.0f)
 	{
 		discard;
 	}
+
+	Radiance.rgb *= ResolvedView.RealTimeReflectionCapture ? ResolvedView.RealTimeReflectionCapturePreExposure : ResolvedView.PreExposure;
 
 	OutColor0 = Radiance;
 }

@@ -28,7 +28,7 @@ class UVdbImporterOptions : public UObject
 public:
 
 	UPROPERTY(config, EditAnywhere, Category = Compression,
-		meta = (DisplayName = "Quantization Type", ToolTip = "VDB grids can be quantized (compressed). Please use this for lighter models in memory. Note that compressed models do not render necessarily faster."))
+		meta = (DisplayName = "Quantization Type", ToolTip = "VDB float grids can be quantized (compressed). Not applicable with Vector Grids. Use this for lighter models in memory. Note that compressed models do not render necessarily faster."))
 	EQuantizationType Quantization;
 
 	UPROPERTY(config, VisibleDefaultsOnly, Category = Sequence,

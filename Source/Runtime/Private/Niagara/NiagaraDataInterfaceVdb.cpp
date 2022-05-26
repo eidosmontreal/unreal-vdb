@@ -14,7 +14,7 @@
 
 #include "NiagaraDataInterfaceVdb.h"
 #include "Rendering/VdbRenderBuffer.h"
-#include "VdbVolume.h"
+#include "VdbVolumeStatic.h"
 
 #include "NiagaraTypes.h"
 #include "NiagaraWorldManager.h"
@@ -64,7 +64,7 @@ struct FNiagaraDataInterfaceParametersCS_VDB : public FNiagaraDataInterfaceParam
 public:
 	void Bind(const FNiagaraDataInterfaceGPUParamInfo& ParameterInfo, const class FShaderParameterMap& ParameterMap)
 	{
-		VdbVolume.Bind(ParameterMap, *(VolumeName + ParameterInfo.DataInterfaceHLSLSymbol));
+		VdbVolumeStatic.Bind(ParameterMap, *(VolumeName + ParameterInfo.DataInterfaceHLSLSymbol));
 		IndexMin.Bind(ParameterMap, *(IndexMinName + ParameterInfo.DataInterfaceHLSLSymbol));
 		IndexMax.Bind(ParameterMap, *(IndexMaxName + ParameterInfo.DataInterfaceHLSLSymbol));
 	}
@@ -78,14 +78,14 @@ public:
 
 		if (Proxy && Proxy->SrvRHI)
 		{
-			SetSRVParameter(RHICmdList, ComputeShaderRHI, VdbVolume, Proxy->SrvRHI);
+			SetSRVParameter(RHICmdList, ComputeShaderRHI, VdbVolumeStatic, Proxy->SrvRHI);
 			SetShaderValue(RHICmdList, ComputeShaderRHI, IndexMin, Proxy->IndexMin);
 			SetShaderValue(RHICmdList, ComputeShaderRHI, IndexMax, Proxy->IndexMax);
 		}
 	}
 
 private:
-	LAYOUT_FIELD(FShaderResourceParameter, VdbVolume);
+	LAYOUT_FIELD(FShaderResourceParameter, VdbVolumeStatic);
 	LAYOUT_FIELD(FShaderParameter, IndexMin);
 	LAYOUT_FIELD(FShaderParameter, IndexMax);
 };
@@ -129,7 +129,7 @@ void UNiagaraDataInterfaceVdb::PostEditChangeProperty(struct FPropertyChangedEve
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
-	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNiagaraDataInterfaceVdb, VdbVolume))
+	if (PropertyChangedEvent.Property && PropertyChangedEvent.Property->GetFName() == GET_MEMBER_NAME_CHECKED(UNiagaraDataInterfaceVdb, VdbVolumeStatic))
 	{
 	}
 
@@ -146,7 +146,7 @@ bool UNiagaraDataInterfaceVdb::CopyToInternal(UNiagaraDataInterface* Destination
 	}
 
 	UNiagaraDataInterfaceVdb* DestinationDI = CastChecked<UNiagaraDataInterfaceVdb>(Destination);
-	DestinationDI->VdbVolume = VdbVolume;
+	DestinationDI->VdbVolumeStatic = VdbVolumeStatic;
 	Destination->MarkRenderDataDirty();
 
 	return true;
@@ -160,7 +160,7 @@ bool UNiagaraDataInterfaceVdb::Equals(const UNiagaraDataInterface* Other) const
 	}
 
 	const UNiagaraDataInterfaceVdb* OtherDI = CastChecked<const UNiagaraDataInterfaceVdb>(Other);
-	return OtherDI->VdbVolume == VdbVolume;
+	return OtherDI->VdbVolumeStatic == VdbVolumeStatic;
 }
 
 void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& OutFunctions)
@@ -179,14 +179,14 @@ void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(InitVolumeName, LOCTEXT("InitVolume", "Mandatory function to init VDB volume sampling."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Accessor")));  // fake int to make sure we force users to init volume before using it
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("GridType")));
 		OutFunctions.Add(Sig);
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(SampleVolumeName, LOCTEXT("SampleVolume", "Sample VDB volume at IJK coordinates. Supports all grid types."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Accessor")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("GridType")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("i")));
@@ -197,7 +197,7 @@ void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(SampleVolumeFastName, LOCTEXT("SampleVolume", "Sample VDB volume at IJK coordinates. Optimal way to do it, but only supports 32f grids (i.e non-quantized)."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Accessor")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("i")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("j")));
@@ -207,7 +207,7 @@ void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(SampleVolumePosName, LOCTEXT("SampleVolumePos", "Sample VDB volume at 3D position."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Accessor")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("GridType")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Position")));
@@ -216,7 +216,7 @@ void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(LevelSetZeroCrossingName, LOCTEXT("LevelSetZeroCrossing", "Trace ray and checks if it crosses a LevelSet in the volume. Returns if hit, which ijk index and value v."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Accessor")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("GridType")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(FVdbRay::StaticStruct()), TEXT("Ray")));
@@ -226,7 +226,7 @@ void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(LevelSetComputeNormalName, LOCTEXT("LevelSetComputeNormal", "Computes LevelSet normal from successful Zero Crossing hit."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("Accessor")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("GridType")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetFloatDef(), TEXT("v")));
@@ -238,7 +238,7 @@ void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(RayClipName, LOCTEXT("RayClip", "Fast Ray update against Volume Bounding Box. Returns false if ray doesn't collide with volume. Updates Ray start and end according to Volume bounding box."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(FVdbRay::StaticStruct()), TEXT("Ray")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetBoolDef(), TEXT("Hit")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(FVdbRay::StaticStruct()), TEXT("Ray")));
@@ -247,21 +247,21 @@ void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 	// Space conversions
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(LocalToVdbSpacePosName, LOCTEXT("LocalToVdbSpacePos", "Converts Position from Local space to VDB space (aka index space)."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("LocalPos")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("VdbPos")));
 		OutFunctions.Add(Sig);
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(LocalToVdbSpaceDirName, LOCTEXT("LocalToVdbSpaceDir", "Converts Direction from Local space to VDB space (aka index space)."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("LocalDir")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("VdbDir")));
 		OutFunctions.Add(Sig);
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(LocalToVdbSpaceName, LOCTEXT("LocalToVdbSpace", "Converts Position and Direction from Local space to VDB space (aka index space)."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("LocalPos")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("LocalDir")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("VdbPos")));
@@ -270,21 +270,21 @@ void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(VdbToLocalSpacePosName, LOCTEXT("VdbToLocalSpacePos", "Converts Position from Local space to VDB space (aka index space)."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("VdbPos")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("LocalPos")));
 		OutFunctions.Add(Sig);
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(VdbToLocalSpaceDirName, LOCTEXT("VdbToLocalSpaceDir", "Converts Direction from Local space to VDB space (aka index space)."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("VdbDir")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("LocalDir")));
 		OutFunctions.Add(Sig);
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(VdbToLocalSpaceName, LOCTEXT("VdbToLocalSpace", "Converts Position and Direction from Local space to VDB space (aka index space)."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("VdbPos")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("VdbDir")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("LocalPos")));
@@ -293,7 +293,7 @@ void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(VdbSpaceToIjkName, LOCTEXT("VdbSpaceToIjk", "Converts VDB position to ijk volume index."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("VdbPos")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("i")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("j")));
@@ -302,7 +302,7 @@ void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(IjkToVdbSpaceName, LOCTEXT("IjkToVdbSpace", "Converts ijk volume index to VDB position."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("i")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("j")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetIntDef(), TEXT("k")));
@@ -312,7 +312,7 @@ void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 	// Ray operations
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(RayFromStartEndName, LOCTEXT("RayFromStartEnd", "Create Ray From Start and End indications."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Start")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("End")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(FVdbRay::StaticStruct()), TEXT("Ray")));
@@ -320,7 +320,7 @@ void UNiagaraDataInterfaceVdb::GetFunctions(TArray<FNiagaraFunctionSignature>& O
 	}
 	{
 		FNiagaraFunctionSignature Sig = InitSignature(RayFromStartDirName, LOCTEXT("RayFromStartDir", "Create Ray From Start and Direction indications."));
-		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolume")));
+		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(GetClass()), TEXT("VdbVolumeStatic")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Start")));
 		Sig.Inputs.Add(FNiagaraVariable(FNiagaraTypeDefinition::GetVec3Def(), TEXT("Dir")));
 		Sig.Outputs.Add(FNiagaraVariable(FNiagaraTypeDefinition(FVdbRay::StaticStruct()), TEXT("Ray")));
@@ -535,9 +535,9 @@ void UNiagaraDataInterfaceVdb::PushToRenderThreadImpl()
 {
 	FNiagaraDataIntefaceProxyVdb* NDIProxy = GetProxyAs<FNiagaraDataIntefaceProxyVdb>();
 	
-	FVdbRenderBuffer* RT_Resource = VdbVolume ? VdbVolume->GetRenderInfos()->GetRenderResource() : nullptr;
-	FIntVector IndexMin = VdbVolume ? VdbVolume->GetIndexMin() : FIntVector();
-	FIntVector IndexMax = VdbVolume ? VdbVolume->GetIndexMax() : FIntVector();
+	FVdbRenderBuffer* RT_Resource = VdbVolumeStatic ? VdbVolumeStatic->GetRenderInfos()->GetRenderResource() : nullptr;
+	FIntVector IndexMin = VdbVolumeStatic ? VdbVolumeStatic->GetIndexMin() : FIntVector();
+	FIntVector IndexMax = VdbVolumeStatic ? VdbVolumeStatic->GetIndexMax() : FIntVector();
 
 	ENQUEUE_RENDER_COMMAND(FPushDIVolumeVdbToRT)
 		(

@@ -13,8 +13,10 @@
 // limitations under the License.
 
 #include "VdbFileUtils.h"
+#include "VdbFileUtilsPublic.h"
 
 #include "Misc/Paths.h"
+#include "ProfilingDebugging/ScopedTimers.h"
 #include "VdbImporterWindow.h"
 
 THIRD_PARTY_INCLUDES_START
@@ -154,6 +156,215 @@ TArray<FVdbGridInfoPtr> VdbFileUtils::ParseVdbFromFile(const FString& Path)
 	return VdbGrids;
 }
 
+bool VdbFileUtils::GetVdbFrameInfos(const FString& Filepath, int32 FrameIndex, uint32 NbFramesInAnimation, FVDBAnimationInfos& AnimationInfos, bool FlipYandZ, bool LogTimes)
+{	
+	double TotalTime = 0;
+	double TimeForInitialization = 0;	
+	double TimeForReadGrids = 0;
+	double TimeForProcessGrids = 0;
+	FDurationTimer TotalTimeTimer(TotalTime);
+
+	openvdb::GridPtrVecPtr grids;
+	openvdb::MetaMap::Ptr meta;
+
+	FDurationTimer InitializationTimer(TimeForInitialization);
+	openvdb::initialize();
+	InitializationTimer.Stop();
+
+	FDurationTimer ReadGridsTimer(TimeForReadGrids);
+	const std::string ConvertedFilepath(TCHAR_TO_UTF8(*Filepath));
+	openvdb::io::File file(ConvertedFilepath);
+	try
+	{
+		file.open();
+		grids = file.getGrids();
+		meta = file.getMetadata();
+		file.close();
+	}
+	catch (openvdb::Exception& e)
+	{
+		UE_LOG(LogVdbFiles, Error, TEXT("Could not read VDB file %s:\n%s"), *Filepath, *FString(e.what()));
+		return false;
+	}
+	ReadGridsTimer.Stop();
+
+	if (FrameIndex == 0)
+	{
+		AnimationInfos.GridAnimationInfosArray.Reserve(grids->size());
+		AnimationInfos.GridAnimationInfosArray.Reset();
+
+		for (openvdb::GridBase::Ptr grid : *grids)
+		{
+			if (!grid)
+			{
+				continue;
+			}
+
+			// Init grid
+			auto& GridAnimationInfos = AnimationInfos.GridAnimationInfosArray.AddDefaulted_GetRef();
+			GridAnimationInfos.GridName = FString(grid->getName().c_str());
+			GridAnimationInfos.GridType = FString(grid->valueType().c_str());
+			GridAnimationInfos.GridClass = FString(grid->gridClassToString(grid->getGridClass()).c_str());
+			GridAnimationInfos.MinValue = TNumericLimits<float>::Max();
+			GridAnimationInfos.MaxValue = TNumericLimits<float>::Min();
+			GridAnimationInfos.WorldSpaceBBox.Init();
+
+			// Reserve space for all frames in the animation
+			GridAnimationInfos.GridFrameInfosArray.Reserve(NbFramesInAnimation);
+
+			// Make sure grid transform is linear
+			openvdb::FloatGrid::Ptr FloatGrid = openvdb::gridPtrCast<openvdb::FloatGrid>(grid);
+			const openvdb::math::Transform& GridTransform = grid->constTransform();
+			if (!GridTransform.isLinear())
+			{
+				UE_LOG(LogVdbFiles, Error, TEXT("VDB file %s contains unsupported non-linear transform"), *Filepath);
+				return false;
+			}
+
+			// Voxel size must be constant across all grids
+			float VoxelSize = GridTransform.voxelSize().x();
+			if ((GridTransform.voxelSize().x() != GridTransform.voxelSize().y()) || (GridTransform.voxelSize().x() != GridTransform.voxelSize().z()))
+			{
+				UE_LOG(LogVdbFiles, Error, TEXT("VDB file %s contains non-square voxels. This is not supported"), *Filepath);
+				return false;
+			}
+
+			if (AnimationInfos.GridAnimationInfosArray.Num() == 1)
+			{
+				AnimationInfos.VoxelSize = VoxelSize;
+			} 
+			else
+			{
+				if (AnimationInfos.VoxelSize != VoxelSize)
+				{
+					UE_LOG(LogVdbFiles, Error, TEXT("VDB file %s contains grid with different voxel size. This is not supported"), *Filepath);
+					return false;
+				}
+			}
+		}
+	}
+
+	FDurationTimer ProcessGridsTimer(TimeForProcessGrids);
+	uint32 GridIndex = 0;
+	for (openvdb::GridBase::Ptr grid : *grids)
+	{
+		if (!grid)
+		{
+			continue;
+		}			
+
+		FVDBGridAnimationInfos& GridAnimationInfos = AnimationInfos.GridAnimationInfosArray[GridIndex];
+		GridIndex++;
+
+		FVbdGridFrameInfos& GridFrameInfos = GridAnimationInfos.GridFrameInfosArray.AddDefaulted_GetRef();
+
+		// We only support NanoVDB LevelSets and FogVolumes which are floating point grids
+		if (grid->isType<openvdb::FloatGrid>())
+		{
+			openvdb::FloatGrid::Ptr FloatGrid = openvdb::gridPtrCast<openvdb::FloatGrid>(grid);
+			GridFrameInfos.ActiveVoxelCount = (uint32)grid->activeVoxelCount();
+			GridFrameInfos.BackgroundValue = FloatGrid->background();
+
+			// Perform some validation
+			const openvdb::math::Transform& GridTransform = grid->constTransform();
+			if (!GridTransform.isLinear())
+			{
+				UE_LOG(LogVdbFiles, Error, TEXT("VDB file %s contains unsupported non-linear transform"), *Filepath);
+				return false;
+			}
+
+			float VoxelSize = GridTransform.voxelSize().x();
+			if ((GridTransform.voxelSize().x() != GridTransform.voxelSize().y()) || (GridTransform.voxelSize().x() != GridTransform.voxelSize().z()))
+			{
+				UE_LOG(LogVdbFiles, Error, TEXT("VDB file %s contains non-square voxels. This is not supported"), *Filepath);
+				return false;
+			}
+			if (AnimationInfos.VoxelSize != VoxelSize)
+			{
+				UE_LOG(LogVdbFiles, Error, TEXT("VDB file %s contains grid with different voxel size. This is not supported"), *Filepath);
+				return false;
+			}
+
+			// Setup index space bounds for current frame of current grid
+			openvdb::CoordBBox IndexSpaceBBox = grid->evalActiveVoxelBoundingBox();
+			GridFrameInfos.IndexSpaceBBox.Min.X = IndexSpaceBBox.min().x();
+			GridFrameInfos.IndexSpaceBBox.Min.Y = IndexSpaceBBox.min().y();
+			GridFrameInfos.IndexSpaceBBox.Min.Z = IndexSpaceBBox.min().z();
+			GridFrameInfos.IndexSpaceBBox.Max.X = IndexSpaceBBox.max().x();
+			GridFrameInfos.IndexSpaceBBox.Max.Y = IndexSpaceBBox.max().y();			
+			GridFrameInfos.IndexSpaceBBox.Max.Z = IndexSpaceBBox.max().z();
+
+			// Setup world space bounds for current frame of current grid
+			openvdb::math::Vec3d WorldSpaceBBoxMin = GridTransform.indexToWorld(IndexSpaceBBox.min().asVec3d());
+			openvdb::math::Vec3d WorldSpaceBBoxMax = GridTransform.indexToWorld(IndexSpaceBBox.max().asVec3d());
+			GridFrameInfos.WorldSpaceBBox = FBox(FVector(WorldSpaceBBoxMin.x(), WorldSpaceBBoxMin.y(), WorldSpaceBBoxMin.z()), 
+													FVector(WorldSpaceBBoxMax.x(), WorldSpaceBBoxMax.y(), WorldSpaceBBoxMax.z()));
+			if (FlipYandZ)
+			{
+				Swap(GridFrameInfos.WorldSpaceBBox.Min.Y, GridFrameInfos.WorldSpaceBBox.Min.Z);
+				Swap(GridFrameInfos.WorldSpaceBBox.Max.Y, GridFrameInfos.WorldSpaceBBox.Max.Z);
+			}
+
+			GridAnimationInfos.WorldSpaceBBox += GridFrameInfos.WorldSpaceBBox;
+
+			// Extract all active voxel values and update current frame's min/max value
+			GridFrameInfos.MinValue = TNumericLimits<float>::Max();
+			GridFrameInfos.MaxValue = TNumericLimits<float>::Min();
+
+			GridFrameInfos.VoxelValues.Reserve(GridFrameInfos.ActiveVoxelCount);
+			for (openvdb::FloatGrid::ValueOnIter iter = FloatGrid->beginValueOn(); iter; ++iter)
+			{
+				openvdb::Coord CurCoord = iter.getCoord();
+				openvdb::math::Vec3d PosWorldSpace = GridTransform.indexToWorld(CurCoord);
+
+				// Extract voxel value
+				FVbdVoxelValue& VoxelValue = GridFrameInfos.VoxelValues.AddDefaulted_GetRef();
+				VoxelValue.VoxelValue = iter.getValue();				
+				VoxelValue.CoordWorldSpace.X = PosWorldSpace.x();
+				VoxelValue.CoordWorldSpace.Y = PosWorldSpace.y();
+				VoxelValue.CoordWorldSpace.Z = PosWorldSpace.z();
+				if (FlipYandZ)
+				{
+					Swap(VoxelValue.CoordWorldSpace.Y, VoxelValue.CoordWorldSpace.Z);
+				}
+
+				// Update current frame's min/max value
+				GridFrameInfos.MinValue = FMath::Min(GridFrameInfos.MinValue, VoxelValue.VoxelValue);
+				GridFrameInfos.MaxValue = FMath::Max(GridFrameInfos.MaxValue, VoxelValue.VoxelValue);
+			}
+
+			// Update animation's min/max values
+			GridAnimationInfos.MinValue = FMath::Min(GridAnimationInfos.MinValue, GridFrameInfos.MinValue);
+			GridAnimationInfos.MaxValue = FMath::Max(GridAnimationInfos.MaxValue, GridFrameInfos.MaxValue);
+		}
+		else
+		{
+			UE_LOG(LogVdbFiles, 
+					Error, 
+					TEXT("Cannot import grid %s (of type %s) from file %s. We only support float (scalar) grids yet."),
+					*FString(grid->getName().c_str()), 
+					*FString(grid->valueType().c_str()),
+					*Filepath);
+		}
+	}
+	ProcessGridsTimer.Stop();
+
+	TotalTimeTimer.Stop();
+	if (LogTimes)
+	{
+		UE_LOG(LogVdbFiles, 
+			   Error,
+			   TEXT("GetVdbFrameInfos: %f (Init=%f, Read=%f, Process=%f) - %s"), 
+			   (float)(TotalTime * 1000), 
+			   (float)(TimeForInitialization * 1000), 
+			   (float)(TimeForReadGrids * 1000), 
+			   (float)(TimeForProcessGrids * 1000), 
+			   *Filepath);
+	}
+
+	return true;
+}
+
 openvdb::GridBase::Ptr VdbFileUtils::OpenVdb(const FString& Path, const FName& GridName)
 {
 	openvdb::initialize();
@@ -179,6 +390,9 @@ nanovdb::GridHandle<> VdbFileUtils::LoadVdb(const FString& Path, const FName& Gr
 	{
 		openvdb::GridBase::Ptr VdbGrid = OpenVdb(Path, GridName);
 
+		using openvdb_Vec4fTree = typename openvdb::tree::Tree4<openvdb::Vec4f, 5, 4, 3>::Type;
+		using openvdb_Vec4fGrid = openvdb::Grid<openvdb_Vec4fTree>;
+
 		// We only support NanoVDB LevelSets and FogVolumes which are floating point grids
 		if (VdbGrid->isType<openvdb::FloatGrid>())
 		{
@@ -191,6 +405,10 @@ nanovdb::GridHandle<> VdbFileUtils::LoadVdb(const FString& Path, const FName& Gr
 			case nanovdb::GridType::FpN: return nanovdb::openToNanoVDB<nanovdb::HostBuffer, openvdb::FloatTree, nanovdb::FpN>(*FloatGrid);
 			default: return nanovdb::openToNanoVDB(VdbGrid);
 			}
+		}
+		else if (VdbGrid->isType<openvdb::VectorGrid>() || VdbGrid->isType<openvdb_Vec4fGrid>())
+		{
+			return nanovdb::openToNanoVDB(VdbGrid);
 		}
 		else
 		{

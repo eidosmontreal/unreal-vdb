@@ -49,8 +49,8 @@ void FVdbSequenceAssetTypeActions::GetResolvedSourceFilePaths(const TArray<UObje
 {
 	for (auto& Asset : TypeAssets)
 	{
-		UVdbVolumeSequence* VdbVolume = CastChecked<UVdbVolumeSequence>(Asset);
-		VdbVolume->GetAssetImportData()->ExtractFilenames(OutSourceFilePaths);
+		UVdbVolumeSequence* VdbVolumeSeq = CastChecked<UVdbVolumeSequence>(Asset);
+		VdbVolumeSeq->GetAssetImportData()->ExtractFilenames(OutSourceFilePaths);
 	}
 }
 

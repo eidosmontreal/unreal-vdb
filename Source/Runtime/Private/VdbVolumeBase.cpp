@@ -18,6 +18,8 @@
 #include "UObject/MetaData.h"
 #include "EditorFramework\AssetImportData.h"
 
+FBox UVdbVolumeBase::ZeroBox = FBox(ForceInitToZero);
+
 UVdbVolumeBase::UVdbVolumeBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -55,22 +57,22 @@ void UVdbVolumeBase::UpdateFromMetadata(const nanovdb::GridMetaData* MetaData)
 
 	if (MetaData->isLevelSet())
 	{
-		VdbType = EVdbType::SignedDistance;
+		VdbClass = EVdbClass::SignedDistance;
 	}
 	else if (MetaData->isFogVolume())
 	{
-		VdbType = EVdbType::FogVolume;
+		VdbClass = EVdbClass::FogVolume;
 	}
 	else if (MetaData->isUnknown())
 	{
 		// I've ran across a few VDB files that don't define their type properly.
 		// Even though it should be undefined, try the default value of FogVolume instead (and let's hope for the best)
-		VdbType = EVdbType::FogVolume;
+		VdbClass = EVdbClass::FogVolume;
 		UE_LOG(LogSparseVolumetrics, Warning, TEXT("VDB %s has an unknown type. Let's assume it is a FogVolume. If it isn't, be prepared for undefined behavior."), *GetName());
 	}
 	else
 	{
-		VdbType = EVdbType::Undefined;
+		VdbClass = EVdbClass::Undefined;
 		UE_LOG(LogSparseVolumetrics, Error, TEXT("VDB %s has an unsupported type. Be prepared for undefined behavior."), *GetName());
 	}
 

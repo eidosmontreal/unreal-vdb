@@ -49,8 +49,6 @@ public class VolumeOpenVDB : ModuleRules
 		if (Target.Platform == UnrealTargetPlatform.Win64)
 		{
 			// Set which version to use.
-			VDBVersion Version = VDBVersion.VDB_8_1;
-
 			string VersionStr = "8.1"; // latest
 
 			string DeployDirName = Path.Combine(ModuleDirectory, "Deploy");

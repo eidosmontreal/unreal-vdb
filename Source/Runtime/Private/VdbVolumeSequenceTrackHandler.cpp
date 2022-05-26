@@ -47,13 +47,12 @@ UActorComponent* FVdbVolumeSequenceTrackHandler::TryCastAsVolumeComponent(const 
 TObjectPtr<UObject> FVdbVolumeSequenceTrackHandler::GetVolume(const UActorComponent* Comp) const
 {
 	const UVdbSequenceComponent* VdbSequenceComponent = CastChecked<const UVdbSequenceComponent>(Comp);
-	return VdbSequenceComponent->VdbSequence;
+	return VdbSequenceComponent->GetPrimarySequence();
 }
 
 void FVdbVolumeSequenceTrackHandler::SetVolume(UActorComponent* Comp, const TObjectPtr<UObject>& Volume)
 {
-	UVdbSequenceComponent* VdbSequenceComponent = CastChecked<UVdbSequenceComponent>(Comp);
-	VdbSequenceComponent->VdbSequence = (UVdbVolumeSequence*)Volume.Get();
+	// not supported
 }
 
 bool FVdbVolumeSequenceTrackHandler::GetManualTick(const UActorComponent* Comp) const

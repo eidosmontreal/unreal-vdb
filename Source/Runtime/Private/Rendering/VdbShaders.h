@@ -24,16 +24,18 @@ namespace VdbShaders
 {
 	static bool IsSupportedVertexFactoryType(const FVertexFactoryType* VertexFactoryType)
 	{
-		static FName VdbVfName = FName(TEXT("FCubeMeshVertexFactory"), FNAME_Find);
+		static FName VdbVfName = FName(TEXT("FVolumeMeshVertexFactory"), FNAME_Find);
 		return VertexFactoryType == FindVertexFactoryType(VdbVfName);
 	}
 }
 
 struct FVdbElementData : public FMeshMaterialShaderElementData
 {
-	float DensityMultiplier;
-	float StepMultiplier;
-	FShaderResourceViewRHIRef BufferSRV;
+	FIntVector4 CustomIntData0; // x: MaxRayDepth, y: SamplesPerPixel, z: unused, w: unused
+	FVector4f CustomFloatData0; // x: Local step size, y: Shadow step size mutliplier, z: voxel size, w: unused
+	FVector4f CustomFloatData1; // x: anisotropy, y: albedo, z: balckbody intensity, w: blackbody temperature
+	FShaderResourceViewRHIRef PrimaryBufferSRV;
+	FShaderResourceViewRHIRef SecondaryBufferSRV;
 };
 
 class FVdbShaderVS : public FMeshMaterialShader
@@ -74,21 +76,25 @@ BEGIN_SHADER_PARAMETER_STRUCT(FVdbShaderParametersPS, )
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
-template<bool IsLevelSet>
+template<bool IsLevelSet, bool UseSecondaryBuffer>
 class FVdbShaderPS : public FMeshMaterialShader
 {
 	DECLARE_SHADER_TYPE(FVdbShaderPS, MeshMaterial);
 
-	LAYOUT_FIELD(FShaderResourceParameter, VdbBuffer);
-	LAYOUT_FIELD(FShaderParameter, DensityMultiplier);
-	LAYOUT_FIELD(FShaderParameter, StepMultiplier);
+	LAYOUT_FIELD(FShaderResourceParameter, PrimaryVdbBuffer);
+	LAYOUT_FIELD(FShaderResourceParameter, SecondaryVdbBuffer);
+	LAYOUT_FIELD(FShaderParameter, CustomIntData0);
+	LAYOUT_FIELD(FShaderParameter, CustomFloatData0);
+	LAYOUT_FIELD(FShaderParameter, CustomFloatData1);
 
 	FVdbShaderPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
 		: FMeshMaterialShader(Initializer)
 	{
-		VdbBuffer.Bind(Initializer.ParameterMap, TEXT("VdbBuffer"));
-		DensityMultiplier.Bind(Initializer.ParameterMap, TEXT("DensityMult"));
-		StepMultiplier.Bind(Initializer.ParameterMap, TEXT("StepMultiplier"));
+		PrimaryVdbBuffer.Bind(Initializer.ParameterMap, TEXT("PrimaryVdbBuffer"));
+		SecondaryVdbBuffer.Bind(Initializer.ParameterMap, TEXT("SecondaryVdbBuffer"));
+		CustomIntData0.Bind(Initializer.ParameterMap, TEXT("CustomIntData0"));
+		CustomFloatData0.Bind(Initializer.ParameterMap, TEXT("CustomFloatData0"));
+		CustomFloatData1.Bind(Initializer.ParameterMap, TEXT("CustomFloatData1"));
 
 		PassUniformBuffer.Bind(Initializer.ParameterMap, FVdbShaderParams::StaticStructMetadata.GetShaderVariableName());
 	}
@@ -106,6 +112,7 @@ public:
 	{
 		FMaterialShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("VDB_LEVEL_SET"), IsLevelSet);
+		OutEnvironment.SetDefine(TEXT("USE_SECONDARY_VDB"), UseSecondaryBuffer);
 		OutEnvironment.SetDefine(TEXT("USE_FORCE_TEXTURE_MIP"), TEXT("1"));
 		OutEnvironment.SetDefine(TEXT("SHADER_VERSION_MAJOR"), NANOVDB_MAJOR_VERSION_NUMBER);
 		OutEnvironment.SetDefine(TEXT("SHADER_VERSION_MINOR"), NANOVDB_MINOR_VERSION_NUMBER);
@@ -123,18 +130,21 @@ public:
 	{
 		FMeshMaterialShader::GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, DrawRenderState, ShaderElementData, ShaderBindings);
 
-		ShaderBindings.Add(VdbBuffer, ShaderElementData.BufferSRV);
-		ShaderBindings.Add(DensityMultiplier, ShaderElementData.DensityMultiplier);
-		ShaderBindings.Add(StepMultiplier, ShaderElementData.StepMultiplier);
+		ShaderBindings.Add(PrimaryVdbBuffer, ShaderElementData.PrimaryBufferSRV);
+		ShaderBindings.Add(SecondaryVdbBuffer, ShaderElementData.SecondaryBufferSRV);
+		ShaderBindings.Add(CustomIntData0, ShaderElementData.CustomIntData0);
+		ShaderBindings.Add(CustomFloatData0, ShaderElementData.CustomFloatData0);
+		ShaderBindings.Add(CustomFloatData1, ShaderElementData.CustomFloatData1);
 	}
 };
-typedef FVdbShaderPS<true> FVdbShaderPS_LevelSet;
-typedef FVdbShaderPS<false>  FVdbShaderPS_FogVolume;
+typedef FVdbShaderPS<true, false> FVdbShaderPS_LevelSet;
+typedef FVdbShaderPS<false, false>  FVdbShaderPS_FogVolume;
+typedef FVdbShaderPS<false, true>  FVdbShaderPS_FogVolume_Blackbody;
 
 
 //-----------------------------------------------------------------------------
 
-BEGIN_UNIFORM_BUFFER_STRUCT(FVdbResearchShaderParams, )
+BEGIN_UNIFORM_BUFFER_STRUCT(FVdbPrincipledShaderParams, )
 	// Volume properties
 	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, VdbDensity)
 	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, VdbTemperature)
@@ -145,26 +155,30 @@ BEGIN_UNIFORM_BUFFER_STRUCT(FVdbResearchShaderParams, )
 	SHADER_PARAMETER(FMatrix44f, WorldToLocal)
 	SHADER_PARAMETER(uint32, SamplesPerPixel)
 	SHADER_PARAMETER(uint32, MaxRayDepth)
+	SHADER_PARAMETER(float, StepSize)
+	SHADER_PARAMETER(float, VoxelSize)
 	// Material parameters
 	SHADER_PARAMETER(FVector3f, Color)
 	SHADER_PARAMETER(float, DensityMult)
 	SHADER_PARAMETER(float, Albedo)
 	SHADER_PARAMETER(float, Anisotropy)
-	SHADER_PARAMETER(FVector3f, EmissionColor)
 	SHADER_PARAMETER(float, EmissionStrength)
+	SHADER_PARAMETER(FVector3f, EmissionColor)
 	SHADER_PARAMETER(FVector3f, BlackbodyTint)
 	SHADER_PARAMETER(float, BlackbodyIntensity)
 	SHADER_PARAMETER(float, Temperature)
+	SHADER_PARAMETER(float, UseDirectionalLight)
+	SHADER_PARAMETER(float, UseEnvironmentLight)
 END_UNIFORM_BUFFER_STRUCT()
 
-class FVdbResearchVS : public FGlobalShader
+class FVdbPrincipledVS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FVdbResearchVS);
-	SHADER_USE_PARAMETER_STRUCT(FVdbResearchVS, FGlobalShader)
+	DECLARE_GLOBAL_SHADER(FVdbPrincipledVS);
+	SHADER_USE_PARAMETER_STRUCT(FVdbPrincipledVS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVdbResearchShaderParams, VdbGlobalParams)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVdbPrincipledShaderParams, VdbGlobalParams)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) 
@@ -180,10 +194,10 @@ class FVdbResearchVS : public FGlobalShader
 	}
 };
 
-class FVdbResearchPS : public FGlobalShader
+class FVdbPrincipledPS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FVdbResearchPS);
-	SHADER_USE_PARAMETER_STRUCT(FVdbResearchPS, FGlobalShader)
+	DECLARE_GLOBAL_SHADER(FVdbPrincipledPS);
+	SHADER_USE_PARAMETER_STRUCT(FVdbPrincipledPS, FGlobalShader)
 
 	class FPathTracing : SHADER_PERMUTATION_BOOL("PATH_TRACING");
 	class FUseTemperature : SHADER_PERMUTATION_BOOL("USE_TEMPERATURE");
@@ -196,10 +210,9 @@ class FVdbResearchPS : public FGlobalShader
 		// VdbRendering data
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, PrevAccumTex)
 		SHADER_PARAMETER(uint32, NumAccumulations)
-		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVdbResearchShaderParams, VdbGlobalParams)
+		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVdbPrincipledShaderParams, VdbGlobalParams)
 		// Debug
 		SHADER_PARAMETER(uint32, DisplayBounds)
-		SHADER_PARAMETER(uint32, DisplayUnfinishedPaths)
 		// Render Target
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()

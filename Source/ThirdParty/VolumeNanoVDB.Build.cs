@@ -27,9 +27,7 @@ public class VolumeNanoVDB : ModuleRules
 		Type = ModuleType.External;
 
 		// Must match OpenVDB version, used in same plugin, cf UOpenVDB.VDBVersion
-		NVDBVersion Version = NVDBVersion.NVDB_32_3;
-
-		string VersionStr = "32.3"; // latest
+		string VersionStr = "32.3";
 
 		// Include NanoVDB (headers only)
 		PublicIncludePaths.Add(Path.Combine(ModuleDirectory, "nanovdb", VersionStr));

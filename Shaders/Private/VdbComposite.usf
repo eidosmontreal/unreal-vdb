@@ -27,11 +27,6 @@ void MainPS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
 #elif DEBUG_DISPLAY == 2 // THROUGHPUT_ONLY
 	OutColor = float4(RadianceAndThroughput.aaa, 1.0);
 #else
-
-	OutColor = float4(	RadianceAndThroughput.rgb
-#if USE_PREEXPOSURE
-						* View.PreExposure
-#endif
-						, RadianceAndThroughput.a);
+	OutColor = float4(RadianceAndThroughput.rgb, RadianceAndThroughput.a);
 #endif
 }

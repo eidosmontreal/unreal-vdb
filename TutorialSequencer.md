@@ -8,9 +8,9 @@ I'm really happy to see that the VFX and the offline rendering community has sho
 and particularly in the pathtracer mode using the `Sequencer` because it allows baking high-quality images and sequences
 of images with realtime tools and realtime preview. 
 
-As a reminder, only `VdbResearchActors` are compatible with Unreal's pathtracer. As the name implies, they are 
-experimental and were initially created for programmers that can change and adapt the HLSL shaders as they see fit. 
-This mode does not use Unreal materials, it uses a hard-coded shader with parameters exposed directly in the `VdbComponent`.  
+As a reminder, only `VdbPrincipledActors` are compatible with Unreal's pathtracer. 
+These actors do not use Unreal materials, they use a physically based hard-coded shader with parameters
+exposed directly in the `VdbPrincipledComponent`.  
 
  
 ## Prerequisites
@@ -26,10 +26,10 @@ I'm only importing the `Density` and `Temperature` grids, we will not use the `F
 
 ### Step 1. Create new Actor
 
-The first step is to create a new VdbResearchActor. 
+The first step is to create a new `VdbPrincipledActor`. 
 ![CreateVdbReseachActor](Resources/TutorialSequencer/CreateVdbReseachActor.png)
 
-### Step 2. Set correct `VdbVolumes` in `VdbComponent`
+### Step 2. Set correct `VdbVolumes` in `VdbPrincipledComponent`
 
 In our case, 
 * `Vdb Density` should link to `embergen_gasoline_explosion_a_seq_density`
@@ -55,14 +55,16 @@ Unreal uses a different coordinate systems than most other Digital Content Creat
 Your imported VDB files will probably be rotated or flipped, 
 use the `Actor Transform` to fix orientation.   
 
+![FixOrientation](Resources/TutorialSequencer/FixOrientation.png)
+
 ### Step 5. Enable Pathtracer
 
 Enable your pathtracer, [following Epic's instructions](https://docs.unrealengine.com/4.27/en-US/RenderingAndGraphics/RayTracing/PathTracer/).
 
-Before:
+#### Before
 ![PTBefore](Resources/TutorialSequencer/ActivatePathtracing.png)
 
-After:
+#### After
 ![PTAfter](Resources/TutorialSequencer/PathtracingActivated.png)
 
 ### Step 6. Make it look good
@@ -78,42 +80,18 @@ It is now time to create a sequence to be able to control the animation, using t
 
 ![CreateSeq](Resources/TutorialSequencer/CreateSequence.png)
 
-We can now add (`Track` in Unreal terms) our `VdbResearchActor` in the `Sequencer`.
+We can now add (`Track` in Unreal terms) our `VdbPrincipledActor` in the `Sequencer`.
 
 ![AddActorToSeq](Resources/TutorialSequencer/AddActorToSequence.png)
 
 ### Step 8. Add VDB sequence in Sequencer
 
-This is probably the only tricky part of the tutorial, make sure to follow the next steps closely.
-
-There are two ways to add `VDB sequences` in the `Sequencer`.
-
-#### Density only animations
-
-When adding a `Track` on your `VdbResearchActor`, you can simply select `Tracks/Vdb Sequence`, 
+When adding a `Track` on your `VdbPrincipledActor`, you can simply select `Tracks/Vdb Sequence`, 
 as explained [here](README.md#sequencer_density).
 
 ![AddSingleSeq](Resources/TutorialSequencer/AddSingleSequence.png)
 
-#### Density and Temperature animations
-
-When using a VDB sequence with `Temperature`, you will need to control each `VdbVolumeSequences` separately 
-by tracking both `DensitySequenceComponent` and `TemperatureSequenceComponent`.
-
-You can then add a `Tracks/Vdb Sequence` on each tracked component.
-
-| Add `Density Sequence Component` tracking | Add sequencer tracking with a `Vdb Sequence` |
-| ----------- | ----------- |
-| ![AdDensity](Resources/TutorialSequencer/AddMultipleSquences_AddDensityComponent.png) | ![AddSeqToDensity](Resources/TutorialSequencer/AddSeqToDensity.png) |
-
-| Add `Temperature Sequence Component` tracking | Add sequencer tracking with a `Vdb Sequence` |
-| ----------- | ----------- |
-| ![Addtemp](Resources/TutorialSequencer/AddMultipleSquences_AddTemperatureComponent.png) | ![AddSeqToTemp](Resources/TutorialSequencer/AddSeqToTemperature.png) |
-
-     
-Warning: My `Sequencer` knowledge and experience is very limited. If you have some constructive feedback or suggestions, 
-feel free to [reach out to me](https://twitter.com/LambertTibo).
-
+This tracked sequence will drive **all Volumes sequences** from your Actor.
 
 ### Step 9. Use the Sequencer
 

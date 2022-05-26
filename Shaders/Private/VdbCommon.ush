@@ -63,6 +63,34 @@ float2 PinholeRandomSample(inout RandomSequence RandSequence)
 	return AAJitter;
 }
 
+struct VdbSampler
+{
+	pnanovdb_grid_handle_t Grid;
+	pnanovdb_buf_t GridBuffer;
+	pnanovdb_readaccessor_t Accessor;
+	pnanovdb_uint32_t GridType;
+	pnanovdb_root_handle_t Root;
+};
+
+VdbSampler InitVdbSampler(pnanovdb_buf_t buf)
+{
+	VdbSampler Sampler;
+	Sampler.GridBuffer = buf;
+
+	pnanovdb_address_t address; address.byte_offset = 0;
+	Sampler.Grid.address = address;
+
+	pnanovdb_buf_t root_buf = buf;
+	pnanovdb_tree_handle_t tree = pnanovdb_grid_get_tree(Sampler.GridBuffer, Sampler.Grid);
+	Sampler.Root = pnanovdb_tree_get_root(root_buf, tree);
+
+	pnanovdb_readaccessor_init(Sampler.Accessor, Sampler.Root);
+
+	Sampler.GridType = pnanovdb_grid_get_grid_type(Sampler.GridBuffer, Sampler.Grid);
+
+	return Sampler;
+}
+
 //-----------------------------------------------------------------------------------------------------------
 // NanoVDB Buffers
 //-----------------------------------------------------------------------------------------------------------
@@ -78,6 +106,27 @@ float ReadValue(pnanovdb_vec3_t pos, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_
 {
 	pnanovdb_coord_t ijk = pnanovdb_hdda_pos_to_ijk(pos);
 	return ReadValue(ijk, buf, grid_type, acc);
+}
+
+float3 ReadValueVec3f(pnanovdb_coord_t ijk, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
+{
+	pnanovdb_address_t address = pnanovdb_readaccessor_get_value_address(grid_type, buf, acc, ijk);
+
+	return float3(
+		pnanovdb_read_float(buf, pnanovdb_address_offset(address, 0u)),
+		pnanovdb_read_float(buf, pnanovdb_address_offset(address, 4u)),
+		pnanovdb_read_float(buf, pnanovdb_address_offset(address, 8u)));
+}
+
+float4 ReadValueVec4f(pnanovdb_coord_t ijk, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
+{
+	pnanovdb_address_t address = pnanovdb_readaccessor_get_value_address(grid_type, buf, acc, ijk);
+
+	return float4(
+		pnanovdb_read_float(buf, pnanovdb_address_offset(address, 0u)),
+		pnanovdb_read_float(buf, pnanovdb_address_offset(address, 4u)),
+		pnanovdb_read_float(buf, pnanovdb_address_offset(address, 8u)),
+		pnanovdb_read_float(buf, pnanovdb_address_offset(address, 12u)));
 }
 
 // Faster, but float32 only
@@ -156,6 +205,13 @@ float3 IndexToWorldPosition(float3 IndexPos, float4x4 LocalToWorld, pnanovdb_buf
 {
 	float3 LocalPos = pnanovdb_grid_index_to_worldf(buf, grid, IndexPos);
 	return mul(float4(LocalPos, 1.0), LocalToWorld).xyz;
+}
+
+float IndexToWorldDistance(float3 IndexVec, float4x4 LocalToWorld, pnanovdb_buf_t buf, pnanovdb_grid_handle_t grid)
+{
+	float3 LocalVec = pnanovdb_grid_index_to_world_dirf(buf, grid, IndexVec);
+	float3 WorldVec = mul(float4(LocalVec, 0.0), LocalToWorld).xyz;
+	return length(WorldVec);
 }
 
 Segment getRayFromPixelCoord(uint2 ScreenPosition, uint2 ScreenDimensions, float2 Jitter, float DeviceZ)
@@ -264,51 +320,10 @@ pnanovdb_vec3_t sampleHG(float g, float e1, float e2)
 	}
 }
 
-pnanovdb_bool_t GetFirstIntersection(
-	pnanovdb_grid_type_t grid_type,
-	pnanovdb_buf_t buf,
-	in out pnanovdb_readaccessor_t acc,
-	in out VdbRay ray,
-	in out float value,
-	HeterogenousMedium medium
-)
+float PhaseHG(float CosTheta, float g)
 {
-	pnanovdb_vec3_t pos = pnanovdb_hdda_ray_start(ray.Origin, ray.TMin, ray.Direction);
-	pnanovdb_coord_t ijk = pnanovdb_hdda_pos_to_ijk(pos);
-
-	value = ReadValue(ijk, buf, grid_type, acc) * medium.densityScale;
-	if (value > medium.densityMin)
-	{
-		return true;
-	}
-
-	pnanovdb_int32_t dim = pnanovdb_uint32_as_int32(pnanovdb_readaccessor_get_dim(grid_type, buf, acc, ijk));
-
-	pnanovdb_hdda_t hdda;
-	pnanovdb_hdda_init(hdda, ray.Origin, ray.TMin, ray.Direction, ray.TMax, dim);
-
-	while (pnanovdb_hdda_step(hdda))
-	{
-		pnanovdb_vec3_t pos_start = pnanovdb_hdda_ray_start(ray.Origin, hdda.tmin + 1.0001f, ray.Direction);
-		ijk = pnanovdb_hdda_pos_to_ijk(pos_start);
-		dim = pnanovdb_uint32_as_int32(pnanovdb_readaccessor_get_dim(grid_type, buf, acc, ijk));
-		pnanovdb_hdda_update(hdda, ray.Origin, ray.Direction, dim);
-		if (hdda.dim > 1 || !pnanovdb_readaccessor_is_active(grid_type, buf, acc, ijk))
-		{
-			continue;
-		}
-		while (pnanovdb_hdda_step(hdda) && pnanovdb_readaccessor_is_active(grid_type, buf, acc, hdda.voxel))
-		{
-			ijk = hdda.voxel;
-			value = ReadValue(ijk, buf, grid_type, acc) * medium.densityScale;
-			if (value > medium.densityMin)
-			{
-				ray.TMin = hdda.tmin;
-				return true;
-			}
-		}
-	}
-	return false;
+	float denom = 1.0 + g * g - 2.0 * g * CosTheta;
+	return 1.0 / (4.0 * PI) * (1.0 - g * g) / (denom * sqrt(denom));
 }
 
 // From NanoVDB samples
@@ -340,10 +355,51 @@ float GetTransmittance(
 		float density = ReadValue(t, ray, buf, grid_type, acc) * medium.densityScale;
 
 		transmittance *= 1.0f - density * densityMaxInv;
-		if (transmittance < 0.4f)
+		if (transmittance < 0.1f)
 			return 0.f;
 	}
 	return transmittance;
 }
+
+float UpdateDensity(float Density, half3 Extinction)
+{
+	// This will evolve to something more complicated soon.
+	return Density * Extinction.x;
+}
+
+
+// Cf FLinearColor::MakeFromColorTemperature
+float3 ColorTemperatureToRGB(float Temp)
+{
+	if (Temp < 1000.0f)
+		return float3(0.0f, 0.0f, 0.0f);
+
+	Temp = clamp(Temp, 1000.0f, 15000.0f);
+
+	// Approximate Planckian locus in CIE 1960 UCS
+	float u = (0.860117757f + 1.54118254e-4f * Temp + 1.28641212e-7f * Temp * Temp) / (1.0f + 8.42420235e-4f * Temp + 7.08145163e-7f * Temp * Temp);
+	float v = (0.317398726f + 4.22806245e-5f * Temp + 4.20481691e-8f * Temp * Temp) / (1.0f - 2.89741816e-5f * Temp + 1.61456053e-7f * Temp * Temp);
+
+	float x = 3.0f * u / (2.0f * u - 8.0f * v + 4.0f);
+	float y = 2.0f * v / (2.0f * u - 8.0f * v + 4.0f);
+	float z = 1.0f - x - y;
+
+	float Y = 1.0f;
+	float X = Y / y * x;
+	float Z = Y / y * z;
+
+	// XYZ to RGB with BT.709 primaries
+	float R = 3.2404542f * X + -1.5371385f * Y + -0.4985314f * Z;
+	float G = -0.9692660f * X + 1.8760108f * Y + 0.0415560f * Z;
+	float B = 0.0556434f * X + -0.2040259f * Y + 1.0572252f * Z;
+
+	return float3(R, G, B);
+}
+
+float Average(float3 Value)
+{
+	return dot(Value, 1.0/3.0);
+}
+
 
 #endif // D_VDB_VOLUMETRIC_COMMON

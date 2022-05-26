@@ -77,14 +77,18 @@ Drag and drop your VDB file in the content browser, or use the `Import asset` op
 
 ![Import](Resources/import_dragndrop.gif)
 
-We decided to import each grid as a single Unreal asset called `VdbVolume` (or sometimes `NanoVdb`) for finer control. We only support *FogVolumes* and *LevelSets* for now, and only support floating grids (no vectors yet). Once imported, every grid is stored as a NanoVDB grid, allowing for better performance on the GPU.
+We decided to import each grid as a single Unreal asset called `VdbVolume` (or sometimes `NanoVdb`) for finer control.
+`VdbVolumes` can be either static (`VdbVolumeStatic`) or a dynamic / animated (`VdbVolumeSequence`).  
+We only support *FogVolumes* and *LevelSets* for now, and only support floating grids (no vectors yet). 
+Once imported, every grid is stored as a NanoVDB grid, allowing for better performance on the GPU.
 
-`VdbVolume` can be added to a Level by creating a `VdbActor` (manually, or by simply drag and dropping the asset in the viewport).
+
+`VdbVolumes` can be added to a Level by creating a `VdbMaterialActor` (manually, or by simply drag and dropping the asset in the viewport).
 
 ![VdbActor](Resources/ls_dragndrop.gif)
 
-* *FogVolumes* `VdbActors` require a **density** `VdbVolume` to render (we only support density volumes for now, as it is the most common case).
-* *LevelSets* `VdbActors` require a narrow-band level set `VdbVolume`.
+* *FogVolumes* `VdbMaterialActors` require a **density** `VdbVolume` to render (we only support density volumes for now, as it is the most common case).
+* *LevelSets* `VdbMaterialActors` require a narrow-band level set `VdbVolume`.
 
 Double click on `VdbVolume` assets to check their properties.
 
@@ -102,7 +106,7 @@ This choice can be modified at any time with an asset reimport.
 
 ## Sequences / Animations
 
-You can also import a sequence of VDB files, if the plugin can detect a continuous file sequence.
+You can also import a sequence of VDB files, if the plugin can detect a continuous file sequence on your disk.
 
 I recommend checking these [free VDB sequences from Embergen](https://jangafx.com/software/embergen/download/free-vdb-animations/), available under the CCO license. 
 
@@ -120,7 +124,7 @@ I recommend checking these [free VDB sequences from Embergen](https://jangafx.co
 
 ## Advanced examples
 
-You can now play with Unreal materials to achieve the look you want. `VdbActors` will only display if they use a **`Volume material`**. We provide a few examples that are already compatible with VDB rendering. 
+You can now play with Unreal materials to achieve the look you want. `VdbMaterialActors` will only display if they use a **`Volume material`**. We provide a few examples that are already compatible with VDB rendering. 
 
 ![](Resources/materials.png)
 
@@ -165,14 +169,20 @@ Using the same trick, artists can also implement their own raymarching algorithm
 | ![VdbActor](Resources/Niagara_DI.png) | ![VdbActor](Resources/Niagara_test.png) | ![VolumeMat](Resources/research_02.png) |
 
 
-### The programmers way
+### The hardcoded way
 
-If you are a programmer and don't care about Unreal features (picking, materials, pipeline integration etc.), we added a more straightforward option to render `VdbVolumes`. 
-We call it the **Research** mode. It is accessible through the `VdbResearchActor` (and `VdbResearchComponent`).
+If you don't care about Unreal features (picking, materials, pipeline integration etc.) 
+and are tired of spending most of your time recompiling materials and shaders, 
+we added a more straightforward option to render `VdbVolumes`. 
+
+We call it the **Principled** mode because the provided hardcoded shader is a unique shader that fits all cases, 
+inspired by offline raytracers like [Blender](https://docs.blender.org/manual/en/latest/render/shader_nodes/shader/volume_principled.html) 
+or [Arnold](https://docs.arnoldrenderer.com/display/A5AFMUG/Standard+Volume).
+It is accessible through the `VdbPrincipledActor` (and `VdbPrincipledComponent`).
 
 It is using a self-contained and lightweight code-path to render `VdbVolumes` on screen. Iterations are much faster, recompiling shaders only takes a couple seconds (compared to minutes with Unreal shaders) and you need not worry about classes like `VertexFactory`, `MeshMaterialShader`, `MeshPassProcessor`, `SceneViewExtensions` etc. anymore. You can also optionally add a denoiser as a rendering post-process.
 
-This **Research** mode is also compatible with [Unreal's *path tracer*](https://docs.unrealengine.com/4.26/en-US/RenderingAndGraphics/RayTracing/PathTracer/), allowing for interesting offline possibilities (graphics research, architecture renders etc.).   
+This **Principled** mode is also compatible with [Unreal's *path tracer*](https://docs.unrealengine.com/4.26/en-US/RenderingAndGraphics/RayTracing/PathTracer/), allowing for interesting offline possibilities (graphics research, architecture renders etc.).   
 
 ![VdbActor](Resources/cloud_pathtrace.gif)
 ![DisneyCloud](Resources/research_01.png) 
@@ -188,12 +198,9 @@ Cloud dataset provided by [Walt Disney Animation Studios](https://www.disneyanim
 ### Using the Sequencer and the Movie Render Queue
 
 For offline high-quality rendering, we recommend using the [Sequencer and the Movie Render Queue](https://docs.unrealengine.com/4.27/en-US/RenderingAndGraphics/RayTracing/MovieRenderQueue/) with the [Path-tracer](https://docs.unrealengine.com/4.27/en-US/RenderingAndGraphics/RayTracing/PathTracer/#path-tracedrendersusingmovierenderqueue) to bake a sequence of output images. 
-The path-tracer is only compatible with `VdbResearchActor` for now.  
+The path-tracer is only compatible with `VdbPrincipledActor` for now.  
 
-> **Tip**: To animate the second `Temperature Volume` in the sequencer, first track the `Sequence components` of your `VdbResearchActor`, then add a `Vdb Sequence` property on each. 
- ![VolumeMat](Resources/sequencer_VDB.png)
-
-Edit: Based on popular demand, [here is a tutorial](TutorialSequencer.md) showing how to setup the sequencer correctly with the pathtracer. 
+[Here is a tutorial](TutorialSequencer.md) showing how to setup the sequencer correctly with the pathtracer. 
 
 
 ---

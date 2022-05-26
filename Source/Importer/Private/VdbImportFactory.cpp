@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "VdbImportFactory.h"
-#include "VdbVolume.h"
+#include "VdbVolumeStatic.h"
 #include "VdbVolumeSequence.h"
 #include "VdbImporterOptions.h"
 #include "VdbImporterWindow.h"
@@ -82,20 +82,19 @@ UVdbImportFactory::UVdbImportFactory(const FObjectInitializer& ObjectInitializer
 
 bool UVdbImportFactory::DoesSupportClass(UClass* Class)
 {
-	return (Class == UVdbVolume::StaticClass() || Class == UVdbVolumeSequence::StaticClass());
+	return (Class == UVdbVolumeStatic::StaticClass() || Class == UVdbVolumeSequence::StaticClass());
 }
 
 UClass* UVdbImportFactory::ResolveSupportedClass()
 {
 	// It's ok to ignore UVdbVolumeSequence, the important thing is to have "SupportedClass == nullptr" and to implement "DoesSupportClass" properly
-	return UVdbVolume::StaticClass();
+	return UVdbVolumeStatic::StaticClass();
 }
 
 nanovdb::GridType ToGridType(EQuantizationType Type)
 {
 	switch (Type)
 	{
-	case EQuantizationType::None: return nanovdb::GridType::Unknown;
 	case EQuantizationType::Fp4: return nanovdb::GridType::Fp4;
 	case EQuantizationType::Fp8: return nanovdb::GridType::Fp8;
 	case EQuantizationType::Fp16: return nanovdb::GridType::Fp16;
@@ -293,7 +292,7 @@ UObject* UVdbImportFactory::FactoryCreateFile(UClass* InClass, UObject* InParent
 
 						bool UseNewName = GridsInfo.Num() > 1 && !InName.ToString().Contains(GridInfo->GridName.ToString());
 
-						UVdbVolume* Vol = NewObject<UVdbVolume>(InParent, UVdbVolume::StaticClass(), UseNewName ? NewName : InName, Flags);
+						UVdbVolumeStatic* Vol = NewObject<UVdbVolumeStatic>(InParent, UVdbVolumeStatic::StaticClass(), UseNewName ? NewName : InName, Flags);
 						Vol->Import(MoveTemp(gridHandle), ImporterOptions->Quantization);
 						Vol->GetAssetImportData()->Update(Filename);
 

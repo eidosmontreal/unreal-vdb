@@ -13,8 +13,7 @@
 // limitations under the License.
 
 #include "VdbReimportFactory.h"
-#include "VdbVolume.h"
-#include "VdbVolumeSequence.h"
+#include "VdbVolumeBase.h"
 
 #include "HAL/FileManager.h"
 #include "EditorFramework\AssetImportData.h"

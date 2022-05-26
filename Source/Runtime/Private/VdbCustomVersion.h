@@ -24,6 +24,7 @@ struct FVdbCustomVersion
 	{
 		// First serialization version
 		StartingPoint = 0,
+		LargestVolume,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

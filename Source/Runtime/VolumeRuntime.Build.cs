@@ -42,6 +42,7 @@ public class VolumeRuntime : ModuleRules
 				"Core",
 				"Projects",
 				"Engine",
+				"GeometryFramework",
 				"VolumeNanoVDB",
 				"VolumeSequencer",
 				"VolumeStreamer"

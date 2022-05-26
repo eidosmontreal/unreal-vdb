@@ -18,7 +18,7 @@
 #include "Toolkits/IToolkitHost.h"
 #include "AssetTypeActions_Base.h"
 
-class UVdbVolume;
+class UVdbVolumeStatic;
 
 class FVdbAssetTypeActions : public FAssetTypeActions_Base
 {
@@ -40,5 +40,5 @@ private:
 	EAssetTypeCategories::Type MyAssetCategory;
 
 private:
-	void ExecuteConvertToVolume(TArray<TWeakObjectPtr<UVdbVolume>> Objects);
+	void ExecuteConvertToVolume(TArray<TWeakObjectPtr<UVdbVolumeStatic>> Objects);
 };
