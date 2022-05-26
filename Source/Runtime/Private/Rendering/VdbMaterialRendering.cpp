@@ -277,7 +277,7 @@ void FVdbMaterialRendering::CreateMeshBatch(FMeshBatch& MeshBatch, const FVdbMat
 	MeshBatch.bUseForDepthPass = false;
 
 	FMeshBatchElement& BatchElement = MeshBatch.Elements[0];
-	BatchElement.PrimitiveUniformBuffer = PrimitiveProxy->GetUniformBuffer();
+	BatchElement.PrimitiveUniformBuffer = nullptr;
 	BatchElement.IndexBuffer = &VertexBuffer->IndexBuffer;
 	BatchElement.FirstIndex = 0;
 	BatchElement.MinVertexIndex = 0;
@@ -319,6 +319,7 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 
 		auto* PassParameters = GraphBuilder.AllocParameters<FVdbShaderParametersPS>();
 		PassParameters->VdbUniformBuffer = VdbUniformBuffer;
+		PassParameters->InstanceCulling = FInstanceCullingContext::CreateDummyInstanceCullingUniformBuffer(GraphBuilder);
 		if (RenderTexture)
 		{
 			PassParameters->RenderTargets[0] = FRenderTargetBinding(RenderTexture, ERenderTargetLoadAction::EClear);
