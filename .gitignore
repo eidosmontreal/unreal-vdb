@@ -1,0 +1,8 @@
+# Ignore Binaries folders
+Binaries/
+
+# Ignore intermediate folders
+Intermediate/
+
+# Ignore bak files
+*.bak
