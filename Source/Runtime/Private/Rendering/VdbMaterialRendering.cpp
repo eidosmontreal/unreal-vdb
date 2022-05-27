@@ -277,7 +277,7 @@ void FVdbMaterialRendering::CreateMeshBatch(FMeshBatch& MeshBatch, const FVdbMat
 	MeshBatch.bUseForDepthPass = false;
 
 	FMeshBatchElement& BatchElement = MeshBatch.Elements[0];
-	BatchElement.PrimitiveUniformBuffer = nullptr;
+	BatchElement.PrimitiveUniformBuffer = PrimitiveProxy->GetUniformBuffer();
 	BatchElement.IndexBuffer = &VertexBuffer->IndexBuffer;
 	BatchElement.FirstIndex = 0;
 	BatchElement.MinVertexIndex = 0;

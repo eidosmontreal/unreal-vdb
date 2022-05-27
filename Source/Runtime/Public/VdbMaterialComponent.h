@@ -54,10 +54,6 @@ class UVdbMaterialComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Volume|FogVolume", meta = (UIMin = "1.0", ClampMin = "1.0"))
 	float ShadowStepSizeMultiplier = 5.f;
 
-	// Describes the probability of scattering (versus absorption) at a scattering event. Between 0 and 1.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|FogVolume", meta = (UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "1.0"))
-	float Albedo = 0.8;
-
 	// Backward or forward scattering direction (aka directional bias).
 	// The default value of zero gives isotropic scattering so that light is scattered evenly in all directions. 
 	// Positive values bias the scattering effect forwards, in the direction of the light, while negative values bias the scattering backward, toward the light. 

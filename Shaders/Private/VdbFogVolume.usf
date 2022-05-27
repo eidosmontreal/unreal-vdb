@@ -39,7 +39,6 @@ StructuredBuffer<uint>	SecondaryVdbBuffer;
 #define VOXEL_SIZE CustomFloatData0.z
 
 #define ANISOTROPY CustomFloatData1.x
-#define ALBEDO CustomFloatData1.y
 #define BLACKBODY_INTENSITY CustomFloatData1.z
 #define BLACKBODY_TEMPERATURE CustomFloatData1.w
 
@@ -78,20 +77,24 @@ half3 SampleEmissive(in FPixelMaterialInputs PixelMaterialInputs)
 	return clamp(EmissiveColor, 0.0f, 65000.0f);
 }
 
-// RGB is albedo aka scattering for volumes, A is volume albedo
-half3 SampleAlbedo(in FPixelMaterialInputs PixelMaterialInputs)
+// RGB is volume scattering color
+half3 SampleScattering(in FPixelMaterialInputs PixelMaterialInputs)
 {
-	half3 Albedo = 1.0;
+	half3 Scattering = 1.0;
 #if !MATERIAL_SHADINGMODEL_UNLIT
-	Albedo = GetMaterialBaseColorRaw(PixelMaterialInputs) * View.DiffuseOverrideParameter.w + View.DiffuseOverrideParameter.xyz;
+	Scattering = GetMaterialBaseColorRaw(PixelMaterialInputs).rgb;
 #endif
-	return Albedo;
+	return Scattering;
 }
 
-// Unused for now
-half SampleAmbientOcclusion(in FPixelMaterialInputs PixelMaterialInputs)
+// Volume albdeo, i.e the probability of scattering versus absorbing
+half SampleAlbedo(in FPixelMaterialInputs PixelMaterialInputs)
 {
+#if MATERIAL_SHADINGMODEL_UNLIT
+	return 0.0;
+#else
 	return GetMaterialAmbientOcclusion(PixelMaterialInputs);
+#endif
 }
 
 // Raymarch towards light. Compute shadow transmittance
@@ -200,8 +203,8 @@ float4 RaymarchFogVolume(
 		// Sample Material
 		half3 EmissiveColor = SampleEmissive(PixelMaterialInputs);
 		half3 Extinction = SampleExtinctionCoefficients(PixelMaterialInputs);
-		half3 Scattering = SampleAlbedo(PixelMaterialInputs);
-		const float Albedo = ALBEDO;
+		half3 Scattering = SampleScattering(PixelMaterialInputs);
+		const float Albedo = SampleAlbedo(PixelMaterialInputs);
 		const float Anisotropy = ANISOTROPY;
 
 		float Density = SAMPLING(s, Ray, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);

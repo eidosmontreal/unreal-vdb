@@ -34,7 +34,7 @@ struct FVdbElementData : public FMeshMaterialShaderElementData
 {
 	FIntVector4 CustomIntData0; // x: MaxRayDepth, y: SamplesPerPixel, z: unused, w: unused
 	FVector4f CustomFloatData0; // x: Local step size, y: Shadow step size mutliplier, z: voxel size, w: unused
-	FVector4f CustomFloatData1; // x: anisotropy, y: albedo, z: balckbody intensity, w: blackbody temperature
+	FVector4f CustomFloatData1; // x: anisotropy, y: unused, z: balckbody intensity, w: blackbody temperature
 	FShaderResourceViewRHIRef PrimaryBufferSRV;
 	FShaderResourceViewRHIRef SecondaryBufferSRV;
 };

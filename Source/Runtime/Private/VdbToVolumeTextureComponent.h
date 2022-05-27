@@ -63,8 +63,6 @@ class UVdbToVolumeTextureComponent : public UActorComponent
 	EVdbToVolumeMethod Method = EVdbToVolumeMethod::PrimaryR8;
 
 	//~ Begin UObject Interface.
-	//virtual void InitializeComponent();
-	virtual void PostInitProperties() override;
 	virtual void PostLoad() override;
 	//~ End UObject Interface.
 

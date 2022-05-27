@@ -265,9 +265,4 @@ void UVdbToVolumeTextureComponent::PostLoad()
 	UpdateRenderTargetIfNeeded(true);
 }
 
-void UVdbToVolumeTextureComponent::PostInitProperties()
-{
-	Super::PostInitProperties();
-}
-
 #undef LOCTEXT_NAMESPACE
