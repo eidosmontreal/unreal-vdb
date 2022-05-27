@@ -343,6 +343,7 @@ TArray<FString> UVdbImportFactory::ExtractVDBFilenamesForSequence(const FString&
 	const FString InputFilePath = FPaths::GetPath(Filename);
 	const FString BaseFilenameWithoutPath = FPaths::GetBaseFilename(Filename);
 	const int32 NumberStartIndex = BaseFilenameWithoutPath.FindLastCharByPredicate([](TCHAR Letter) { return !FChar::IsDigit(Letter); }) + 1;
+	const FString BaseName = BaseFilenameWithoutPath.Left(NumberStartIndex);
 
 	bool HasIndexZero = false;
 	{
@@ -351,6 +352,7 @@ TArray<FString> UVdbImportFactory::ExtractVDBFilenamesForSequence(const FString&
 
 		TArray<FString> VBDFilenames;
 		IFileManager::Get().FindFiles(VBDFilenames, *InputFilePath, TEXT("*.vdb"));
+		VBDFilenames = VBDFilenames.FilterByPredicate([BaseName](const FString& Name) { return Name.Contains(BaseName); });
 
 		VBDFilenamesSorted.SetNum(VBDFilenames.Num() + 1);
 		for (FString& UnsortedFilename : VBDFilenames)
