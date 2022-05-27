@@ -16,7 +16,6 @@
 
 #include "RenderResource.h"
 #include "Rendering/VdbRenderBuffer.h"
-#include "VdbComponentBase.h"
 #include "VdbCustomVersion.h"
 
 
@@ -114,4 +113,10 @@ void FVolumeRenderInfos::ReleaseResources(bool ClearGrid)
 	{
 		NanoGridHandle.buffer().clear();
 	}
+}
+
+bool FVolumeRenderInfos::IsVectorGrid() const
+{
+	return NanoGridHandle.gridType() == nanovdb::GridType::Vec3f ||
+		NanoGridHandle.gridType() == nanovdb::GridType::Vec4f;
 }

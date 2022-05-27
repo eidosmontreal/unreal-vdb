@@ -30,15 +30,21 @@ class VOLUMERUNTIME_API UVdbVolumeBase : public UObject
 {
 	GENERATED_UCLASS_BODY()
 
+	static FBox ZeroBox;
+
 public:
 
 	UVdbVolumeBase() = default;
 	virtual ~UVdbVolumeBase() = default;
 
+	UFUNCTION(BlueprintCallable, Category = Volume)
 	bool IsSequence() const { return IsVolSequence; }
 
-	EVdbType GetType() { return VdbType; };
-	const FBox& GetBounds() const { return Bounds; }
+	EVdbClass GetVdbClass() { return VdbClass; };
+	const FBox& GetGlobalBounds() const { return Bounds; }
+	const FIntVector& GetLargestVolume() const { return LargestVolume; }
+	// We only support Volume with cubic voxels (same dimension in all axes)
+	float GetVoxelSize() const { return VoxelSize.X; }
 	int GetMemorySize() const { return MemoryUsage; }
 #if WITH_EDITORONLY_DATA
 	class UAssetImportData* GetAssetImportData() { return AssetImportData; }
@@ -47,6 +53,7 @@ public:
 	void UpdateFromMetadata(const nanovdb::GridMetaData* MetaData);
 
 	virtual bool IsValid() const PURE_VIRTUAL(UVdbVolumeBase::IsValid, return false;);
+	virtual const FBox& GetBounds(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetBounds, return ZeroBox;);
 	virtual const FIntVector& GetIndexMin(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetIndexMin, return FIntVector::ZeroValue;);
 	virtual const FIntVector& GetIndexMax(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetIndexMax, return FIntVector::ZeroValue;);
 	virtual const FMatrix44f& GetIndexToLocal(uint32 FrameIndex) const PURE_VIRTUAL(UVdbVolumeBase::GetIndexToLocal, return FMatrix44f::Identity;);
@@ -64,7 +71,7 @@ public:
 protected:
 
 	UPROPERTY(VisibleAnywhere, Category = "Properties")
-	EVdbType VdbType;
+	EVdbClass VdbClass;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(BlueprintReadOnly, Instanced, Category = ImportSettings)
@@ -85,6 +92,9 @@ protected:
 
 	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = "Properties")
 	FBox Bounds;
+
+	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = "Properties")
+	FIntVector LargestVolume;
 
 	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = "Properties")
 	FVector3f VoxelSize;

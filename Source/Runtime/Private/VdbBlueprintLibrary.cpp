@@ -14,7 +14,7 @@
 
 #include "VdbBlueprintLibrary.h"
 #include "VolumeRuntimeModule.h"
-#include "Rendering/VdbRendering.h"
+#include "Rendering/VdbMaterialRendering.h"
 
 void UVdbBlueprintLibrary::SetRaymarchingSampleCount(int SampleCount)
 {

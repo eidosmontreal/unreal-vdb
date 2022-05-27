@@ -16,7 +16,7 @@
 
 #include "CoreMinimal.h"
 #include "RenderResource.h"
-#include "VdbVolume.h"
+#include "VdbVolumeStatic.h"
 
 class FVdbRenderBuffer : public FRenderResource, public FRefCountedObject
 {

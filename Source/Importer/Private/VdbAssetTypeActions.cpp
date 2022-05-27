@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "VdbAssetTypeActions.h"
-#include "VdbVolume.h"
+#include "VdbVolumeStatic.h"
 #include "VdbToVolumeTextureFactory.h"
 
 #include "EditorFramework/AssetImportData.h"
@@ -42,7 +42,7 @@ FColor FVdbAssetTypeActions::GetTypeColor() const
 
 UClass* FVdbAssetTypeActions::GetSupportedClass() const
 {
-	return UVdbVolume::StaticClass();
+	return UVdbVolumeStatic::StaticClass();
 }
 
 uint32 FVdbAssetTypeActions::GetCategories()
@@ -52,7 +52,7 @@ uint32 FVdbAssetTypeActions::GetCategories()
 
 void FVdbAssetTypeActions::GetActions(const TArray<UObject*>& InObjects, FToolMenuSection& Section)
 {
-	auto VdbVolumes = GetTypedWeakObjectPtrs<UVdbVolume>(InObjects);
+	auto VdbVolumes = GetTypedWeakObjectPtrs<UVdbVolumeStatic>(InObjects);
 
 	Section.AddMenuEntry(
 		"VdbVolume_CreateVolumeTexture",
@@ -70,15 +70,15 @@ void FVdbAssetTypeActions::GetResolvedSourceFilePaths(const TArray<UObject*>& Ty
 {
 	for (auto& Asset : TypeAssets)
 	{
-		UVdbVolume* VdbVolume = CastChecked<UVdbVolume>(Asset);
-		VdbVolume->GetAssetImportData()->ExtractFilenames(OutSourceFilePaths);
+		UVdbVolumeStatic* VdbVolumeStatic = CastChecked<UVdbVolumeStatic>(Asset);
+		VdbVolumeStatic->GetAssetImportData()->ExtractFilenames(OutSourceFilePaths);
 	}
 }
 
 //////////////////////////////////////////////////////////////////////////
 
 
-void FVdbAssetTypeActions::ExecuteConvertToVolume(TArray<TWeakObjectPtr<UVdbVolume>> Objects)
+void FVdbAssetTypeActions::ExecuteConvertToVolume(TArray<TWeakObjectPtr<UVdbVolumeStatic>> Objects)
 {
 	const FString DefaultSuffix = TEXT("_Volume");
 

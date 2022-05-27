@@ -113,23 +113,25 @@ void FVolumeStreamingManager::UpdateResourceStreaming(float DeltaTime, bool bPro
 
 	for (IInterface_StreamableVolumetricAssetOwner* Component : StreamingComponents)
 	{
-		IInterface_StreamableVolumetricAsset* Volume = Component->GetStreamableAsset();
-		if (Volume)
+		for (IInterface_StreamableVolumetricAsset* Volume : Component->GetStreamableAssets())
 		{
-			FStreamingVolumeData** DataPtr = StreamingVolumes.Find(Volume);
-			if (DataPtr)
+			if (Volume)
 			{
-				ChunksNeeded.Reset();
-
-				// Get needed frame indices from component. Convert needed frame indices into needed chunk indices
-				//		FramesNeededByComponent.Reset();
-				//		Component->GetNeededFrames(FramesNeededByComponent);
-				//		Volume->GetNeededChunks(FramesNeededByComponent, ChunksNeeded);
-				Component->UpdateIndicesOfChunksToStream(ChunksNeeded);
-
-				for (uint32& ChunkIndex : ChunksNeeded)
+				FStreamingVolumeData** DataPtr = StreamingVolumes.Find(Volume);
+				if (DataPtr)
 				{
-					(*DataPtr)->AddNeededChunk(ChunkIndex);
+					ChunksNeeded.Reset();
+
+					// Get needed frame indices from component. Convert needed frame indices into needed chunk indices
+					//		FramesNeededByComponent.Reset();
+					//		Component->GetNeededFrames(FramesNeededByComponent);
+					//		Volume->GetNeededChunks(FramesNeededByComponent, ChunksNeeded);
+					Component->UpdateIndicesOfChunksToStream(ChunksNeeded);
+
+					for (uint32& ChunkIndex : ChunksNeeded)
+					{
+						(*DataPtr)->AddNeededChunk(ChunkIndex);
+					}
 				}
 			}
 		}
@@ -264,11 +266,14 @@ void FVolumeStreamingManager::PrefetchDataInternal(IInterface_StreamableVolumetr
 
 	check(IsInGameThread());
 	check(IsManagedComponent(AssetOwner));
-	if (AssetOwner->GetStreamableAsset())
+	for (auto Volume : AssetOwner->GetStreamableAssets())
 	{
-		FStreamingVolumeData** data = StreamingVolumes.Find(AssetOwner->GetStreamableAsset());
-		checkf(data != nullptr, TEXT("No data could be prefetched for an animation because it was not registered with the manager."));
-		(*data)->PrefetchData(AssetOwner);
+		if (Volume)
+		{
+			FStreamingVolumeData** data = StreamingVolumes.Find(Volume);
+			checkf(data != nullptr, TEXT("No data could be prefetched for an animation because it was not registered with the manager."));
+			(*data)->PrefetchData(AssetOwner);
+		}
 	}
 }
 

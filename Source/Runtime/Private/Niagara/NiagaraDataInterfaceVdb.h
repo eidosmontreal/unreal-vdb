@@ -62,7 +62,7 @@ public:
 	DECLARE_NIAGARA_DI_PARAMETER();
 
 	UPROPERTY(EditAnywhere, Category = "Source")
-	TObjectPtr<class UVdbVolume> VdbVolume;
+	TObjectPtr<class UVdbVolumeStatic> VdbVolumeStatic;
 
 	//UObject Interface
 	virtual void PostInitProperties() override;

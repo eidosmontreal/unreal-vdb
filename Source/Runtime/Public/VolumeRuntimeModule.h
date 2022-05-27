@@ -20,22 +20,22 @@
 
 class FVolumeRuntimeModule : public IModuleInterface
 {
-	typedef TSharedPtr<class FVdbRendering, ESPMode::ThreadSafe> TRenderExtensionPtr;
-	typedef TSharedPtr<class FVdbResearchRendering, ESPMode::ThreadSafe> TRenderResearchPtr;
+	typedef TSharedPtr<class FVdbMaterialRendering, ESPMode::ThreadSafe> TRenderExtensionPtr;
+	typedef TSharedPtr<class FVdbPrincipledRendering, ESPMode::ThreadSafe> TRenderPrincipledPtr;
 
 public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
 	static TRenderExtensionPtr GetRenderExtension();
-	static TRenderResearchPtr GetRenderReseachMgr();
+	static TRenderPrincipledPtr GetRenderPrincipledMgr();
 
 private:
 	TRenderExtensionPtr GetOrCreateRenderExtension();
-	TRenderResearchPtr GetOrCreateRenderResearchMgr();
+	TRenderPrincipledPtr GetOrCreateRenderPrincipledMgr();
 
-	TRenderExtensionPtr VdbRenderExtension; // Regular renderer
-	TRenderResearchPtr VdbRenderResearchMgr; // Experimentation renderer
+	TRenderExtensionPtr VdbMaterialRenderExtension; // Regular renderer
+	TRenderPrincipledPtr VdbPrincipledRenderExtension; // Experimentation renderer
 
 	FVdbVolumeSequenceTrackHandler VdbVolumeSequenceTrackHandler;
 };

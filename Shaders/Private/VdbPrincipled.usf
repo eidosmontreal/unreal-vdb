@@ -1,0 +1,281 @@
+// Copyright 2022 Eidos-Montreal / Eidos-Sherbrooke
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http ://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "/Engine/Private/Common.ush"
+#include "/Engine/Private/ReflectionEnvironmentShared.ush"
+
+#include "/Plugin/VdbVolume/Private/VdbCommon.ush"
+
+Texture2D<float>	SceneDepthTexture;
+Texture2D<float4>	PrevAccumTex;
+uint				NumAccumulations;
+uint				DisplayBounds;
+
+// Using Uniform Buffer VdbPrincipledParams
+
+#if PATH_TRACING
+	#define SAMPLING TrilinearSampling
+#else
+	#define SAMPLING ReadValue
+#endif
+
+#if defined(SHADER_VERTEX)
+
+void MainVS(in float4 InPosition : ATTRIBUTE0, out float4 OutPosition : SV_Position)
+{
+	float4 VolPos = InPosition * float4(VdbPrincipledParams.VolumeScale, 1.0) + float4(VdbPrincipledParams.VolumeTranslation, 0.0);
+	float4 LocalPos = mul(VolPos, VdbPrincipledParams.VolumeToLocal);
+	float4 WorldPos = mul(LocalPos, VdbPrincipledParams.LocalToWorld);
+	OutPosition = mul(WorldPos, LWCHackToFloat(PrimaryView.WorldToClip));
+}
+
+#elif defined(SHADER_PIXEL)
+
+// Phase function.
+pnanovdb_vec3_t SampleHenyeyGreenstein(float g, float e1, float e2)
+{
+	float cosTheta = 1.0f - 2.0f * e2; // isotropic
+
+	if (abs(g) >= 0.001)  // anisotropic
+	{
+		float sqrTerm = (1.0 - g * g) / (1.0 - g + 2.0 * g * e1);
+		cosTheta = (1.0 + g * g - sqrTerm * sqrTerm) / (2.0 * g);
+	}
+
+	float sinTheta = sqrt(max(0.000001, 1.0f - cosTheta * cosTheta));
+	float phi = (2.0f * PI) * e1;
+	return pnanovdb_vec3_t(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+}
+
+float3 GetShadowTransmittance(
+	VdbSampler DensitySampler,
+	pnanovdb_vec3_t bbox_min,
+	pnanovdb_vec3_t bbox_max,
+	pnanovdb_vec3_t pos, // index space
+	pnanovdb_vec3_t dir, // index space
+	HeterogenousMedium Medium,
+	float StepMultiplier,
+	float3 SigmaT,
+	in out RandomSequence RandSequence)
+{
+	VdbRay ShadowRay;
+	ShadowRay.Origin = pos;
+	ShadowRay.Direction = dir;
+	ShadowRay.TMin = 0.0001f; // DeltaFloat;
+	ShadowRay.TMax = POSITIVE_INFINITY;
+
+	pnanovdb_bool_t hit = pnanovdb_hdda_ray_clip(bbox_min, bbox_max, ShadowRay.Origin, ShadowRay.TMin, ShadowRay.Direction, ShadowRay.TMax);
+	if (!hit)
+		return 1.0f;
+
+	float StepSize = VdbPrincipledParams.StepSize * StepMultiplier / VdbPrincipledParams.VoxelSize; // Index space
+	float RaymarchDistance = ShadowRay.TMax - ShadowRay.TMin; // Index space
+	const uint NumSteps = min(ceil(RaymarchDistance / StepSize), VdbPrincipledParams.MaxRayDepth);
+	float StepWorldMeters = StepSize * CENTIMETER_TO_METER;
+
+	float AccumDensity = 0.0;
+	for (uint iStep = 0; iStep < NumSteps; ++iStep)
+	{
+		float s = ShadowRay.TMin + (iStep + RandomSequence_GenerateSample1D(RandSequence)) * StepSize;
+		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(ShadowRay.Origin, s, ShadowRay.Direction);
+
+		float Density = ReadValue(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
+		AccumDensity += Density * Medium.densityScale;
+	}
+	return exp(-AccumDensity * StepWorldMeters * SigmaT);
+}
+
+// Ray Marching version
+float4 RaymarchVolume(
+	VdbSampler DensitySampler,
+	VdbSampler TemperatureSampler,
+	pnanovdb_vec3_t bbox_min,
+	pnanovdb_vec3_t bbox_max,
+	VdbRay Ray,
+	HeterogenousMedium Medium,
+	in out RandomSequence RandSequence,
+	pnanovdb_vec3_t lightDir,
+	pnanovdb_vec3_t lightCol)
+{
+	if (!pnanovdb_hdda_ray_clip(bbox_min, bbox_max, Ray.Origin, Ray.TMin, Ray.Direction, Ray.TMax))
+	{
+		return float4(0.0, 0.0, 0.0, 0.0);
+	}
+	else if (DisplayBounds != 0) // Debug Display
+	{
+		return float4(1.0, 0.0, 1.0, 1.0);
+	}
+
+	// Transform light world direction to index space
+	float3 LightDir = WorldToIndexDirection(View.DirectionalLightDirection, VdbPrincipledParams.WorldToLocal, DensitySampler.GridBuffer, DensitySampler.Grid); // Index space
+	float3 LightCol = View.DirectionalLightColor.xyz;
+	float CosThetaPhase = dot(LightDir, Ray.Direction);
+
+	float IndexToWorldMeters = IndexToWorldDistance(Ray.Direction, VdbPrincipledParams.LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid) * CENTIMETER_TO_METER;
+
+	float3 Radiance = 0.0;
+	float3 Transmittance = 1.0;
+
+	// ------------------------------------------------------------------------
+	// Raymarch with fixed steps
+
+	float StepSize = VdbPrincipledParams.StepSize / VdbPrincipledParams.VoxelSize; // Index space
+	float RaymarchDistance = Ray.TMax - Ray.TMin; // Index space
+	const uint NumSteps = min(ceil(RaymarchDistance / StepSize), VdbPrincipledParams.MaxRayDepth);
+	float StepWorldMeters = StepSize * CENTIMETER_TO_METER;
+
+	for (uint iStep = 0; iStep < NumSteps; ++iStep)
+	{
+		float s = Ray.TMin + (iStep + RandomSequence_GenerateSample1D(RandSequence)) * StepSize;
+		if (s >= Ray.TMax)
+			break;
+
+		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
+
+		float Density = SAMPLING(s, Ray, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor) * Medium.densityScale;
+
+		float3 SigmaT = VdbPrincipledParams.Color.rgb; // Extinction
+		float3 SigmaS = SigmaT * Medium.albedo; // Scattering
+		float3 SigmaA = SigmaT - SigmaS; // Absorption
+
+		float StepTransmittance = Transmittance * StepWorldMeters * Density;
+
+		// Single scattering from Directional light or Environment
+		float LightSources = VdbPrincipledParams.UseDirectionalLight + VdbPrincipledParams.UseEnvironmentLight; // nice trick from SebH
+		if (VdbPrincipledParams.UseDirectionalLight)
+		{
+			float3 ShadowDirection = LightDir;
+			float ShadowTransmittance = GetShadowTransmittance(DensitySampler, bbox_min, bbox_max, iPos, ShadowDirection, Medium, 2.0, SigmaT, RandSequence);
+			Radiance += StepTransmittance * SigmaS * LightCol * ShadowTransmittance * PhaseHG(CosThetaPhase, Medium.anisotropy);
+		}
+		if (VdbPrincipledParams.UseEnvironmentLight)
+		{
+			// Random sample in entire sphere direction to capture Ambient environment
+			float2 rnd = RandomSequence_GenerateSample2D(RandSequence);
+			float3 ShadowDirection = SampleHenyeyGreenstein(0.0, rnd.x, rnd.y);
+			float ShadowTransmittance = GetShadowTransmittance(DensitySampler, bbox_min, bbox_max, iPos, ShadowDirection, Medium, 4.0, SigmaT, RandSequence);
+			
+			float3 WorldDir = IndexToWorldDirection(ShadowDirection, VdbPrincipledParams.LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
+			float3 IncomingRadiance = GetSkySHDiffuse(WorldDir) * View.SkyLightColor.rgb;
+
+			Radiance += StepTransmittance * SigmaS * IncomingRadiance * ShadowTransmittance;
+		}
+
+#if USE_TEMPERATURE
+		// Blackbody emissive
+		float Temperature = SAMPLING(s, Ray, TemperatureSampler.GridBuffer, TemperatureSampler.GridType, TemperatureSampler.Accessor) * VdbPrincipledParams.Temperature;
+		float3 TemperatureColor = ColorTemperatureToRGB(Temperature) * VdbPrincipledParams.BlackbodyTint * VdbPrincipledParams.BlackbodyIntensity;
+
+		Radiance += StepTransmittance * SigmaA * TemperatureColor;
+#endif
+
+		// Regular emissive
+		Radiance += StepTransmittance * SigmaA * VdbPrincipledParams.EmissionStrength * VdbPrincipledParams.EmissionColor;
+
+		Transmittance *= exp(-SigmaT * Density * StepWorldMeters);
+
+		if (all(Transmittance < 0.01f))
+		{
+			Transmittance = 0.0f;
+			break;
+		}
+	}
+
+	return float4(Radiance, 1.0 - Average(Transmittance));
+}
+
+float4 VdbFogVolume(uint2 LaunchIndex)
+{
+	float DeviceZ = SceneDepthTexture.Load(int3(LaunchIndex, 0)).x;
+
+	// ------------------------------------------------------------------------------------------------------
+	// Prepare NanoVDB
+
+	VdbSampler DensitySampler = InitVdbSampler(VdbPrincipledParams.VdbDensity);
+	VdbSampler TemperatureSampler = DensitySampler;
+#if USE_TEMPERATURE
+	TemperatureSampler = InitVdbSampler(VdbPrincipledParams.VdbTemperature);
+#endif
+
+	pnanovdb_buf_t root_buf = VdbPrincipledParams.VdbDensity;
+	pnanovdb_tree_handle_t tree = pnanovdb_grid_get_tree(DensitySampler.GridBuffer, DensitySampler.Grid);
+	pnanovdb_root_handle_t root = pnanovdb_tree_get_root(DensitySampler.GridBuffer, tree);
+
+	// Global values (could be computed on CPU, and passed to shader instead)
+	float root_min_val = pnanovdb_read_float(DensitySampler.GridBuffer, pnanovdb_root_get_min_address(DensitySampler.GridType, DensitySampler.GridBuffer, root));
+	float root_max_val = pnanovdb_read_float(DensitySampler.GridBuffer, pnanovdb_root_get_max_address(DensitySampler.GridType, DensitySampler.GridBuffer, root));
+	pnanovdb_vec3_t bbox_min = pnanovdb_coord_to_vec3(pnanovdb_root_get_bbox_min(DensitySampler.GridBuffer, root));
+	pnanovdb_vec3_t bbox_max = pnanovdb_coord_to_vec3(pnanovdb_root_get_bbox_max(DensitySampler.GridBuffer, root));
+
+
+	// ------------------------------------------------------------------------------------------------------
+	// Prepare variables
+
+	HeterogenousMedium Medium;
+	Medium.densityScale = VdbPrincipledParams.DensityMult;
+	Medium.densityMin = root_min_val * Medium.densityScale;
+	Medium.densityMax = root_max_val * Medium.densityScale;
+	Medium.anisotropy = VdbPrincipledParams.Anisotropy;
+	Medium.albedo = VdbPrincipledParams.Albedo;
+
+	float4 Radiance = 0.0;
+
+	// ------------------------------------------------------------------------------------------------------
+	// Trace rays and accumulate
+
+	uint LinearIndex = LaunchIndex.y * uint(View.BufferSizeAndInvSize.x) + LaunchIndex.x;
+
+	for (uint SampleIndex = 0; SampleIndex < VdbPrincipledParams.SamplesPerPixel; ++SampleIndex)
+	{
+		RandomSequence RandSequence;
+		RandomSequence_Initialize(RandSequence, LinearIndex, SampleIndex + NumAccumulations * VdbPrincipledParams.SamplesPerPixel);
+
+		#if PATH_TRACING
+			float2 Jitter = PinholeRandomSample(RandSequence);
+		#else
+			float2 Jitter = (SampleIndex > 0) ? RandomSequence_GenerateSample2D(RandSequence) - 0.5 : 0.0;
+		#endif
+		VdbRay Ray = PrepareRayFromPixel(DensitySampler.GridBuffer, DensitySampler.Grid, LaunchIndex.xy, uint2(View.BufferSizeAndInvSize.xy), Jitter, DeviceZ, VdbPrincipledParams.WorldToLocal); // index/vdb space
+
+		Radiance += RaymarchVolume(DensitySampler, TemperatureSampler, bbox_min, bbox_max, Ray, Medium, RandSequence, View.DirectionalLightDirection.xyz, View.DirectionalLightColor.rgb);
+	}
+
+	Radiance /= VdbPrincipledParams.SamplesPerPixel;
+
+	return Radiance;
+}
+
+void MainPS(
+	in float4 SvPosition : SV_POSITION, 
+	out float4 OutColor : SV_Target0)
+{
+	float4 Radiance = VdbFogVolume(uint2(SvPosition.xy));
+	Radiance.rgb *= View.PreExposure;
+	
+#if PATH_TRACING
+	uint NumSamples = NumAccumulations + 1;
+	float BlendFactor = 1.0 / float(NumSamples);
+	// Reset if first Accumuluation
+	float4 OldPixel = NumSamples > 1 ? PrevAccumTex[uint2(SvPosition.xy)] : 0.0;
+	float4 NewRadiance = lerp(OldPixel, Radiance, BlendFactor);
+
+	OutColor = NewRadiance;
+#else
+	OutColor = Radiance;
+#endif
+}
+
+#else
+	#error Wrong shader type
+#endif

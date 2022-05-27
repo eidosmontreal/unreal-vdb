@@ -15,10 +15,11 @@
 #include "VdbShaders.h"
 
 IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FVdbShaderParams, "VdbParams", SceneTextures);
-IMPLEMENT_UNIFORM_BUFFER_STRUCT(FVdbResearchShaderParams, "VdbResearchParams");
+IMPLEMENT_UNIFORM_BUFFER_STRUCT(FVdbPrincipledShaderParams, "VdbPrincipledParams");
 
 IMPLEMENT_MATERIAL_SHADER_TYPE(, FVdbShaderVS, TEXT("/Plugin/VdbVolume/Private/VdbVertexShader.usf"), TEXT("MainVS"), SF_Vertex);
 IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, FVdbShaderPS_LevelSet, TEXT("/Plugin/VdbVolume/Private/VdbLevelSet.usf"), TEXT("MainPS"), SF_Pixel);
 IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, FVdbShaderPS_FogVolume, TEXT("/Plugin/VdbVolume/Private/VdbFogVolume.usf"), TEXT("MainPS"), SF_Pixel);
-IMPLEMENT_GLOBAL_SHADER(FVdbResearchVS, "/Plugin/VdbVolume/Private/VdbResearch.usf", "MainVS", SF_Vertex);
-IMPLEMENT_GLOBAL_SHADER(FVdbResearchPS, "/Plugin/VdbVolume/Private/VdbResearch.usf", "MainPS", SF_Pixel);
+IMPLEMENT_MATERIAL_SHADER_TYPE(template<>, FVdbShaderPS_FogVolume_Blackbody, TEXT("/Plugin/VdbVolume/Private/VdbFogVolume.usf"), TEXT("MainPS"), SF_Pixel);
+IMPLEMENT_GLOBAL_SHADER(FVdbPrincipledVS, "/Plugin/VdbVolume/Private/VdbPrincipled.usf", "MainVS", SF_Vertex);
+IMPLEMENT_GLOBAL_SHADER(FVdbPrincipledPS, "/Plugin/VdbVolume/Private/VdbPrincipled.usf", "MainPS", SF_Pixel);

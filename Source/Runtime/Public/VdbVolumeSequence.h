@@ -78,6 +78,7 @@ public:
 	
 	//~ Begin UVdbVolumeBase Interface.
 	virtual bool IsValid() const;
+	virtual const FBox& GetBounds(uint32 FrameIndex) const;
 	virtual const FIntVector& GetIndexMin(uint32 FrameIndex) const;
 	virtual const FIntVector& GetIndexMax(uint32 FrameIndex) const;
 	virtual const FMatrix44f& GetIndexToLocal(uint32 FrameIndex) const;

@@ -52,7 +52,7 @@ class IInterface_StreamableVolumetricAssetOwner
 {
 public:
 	virtual void UpdateIndicesOfChunksToStream(TArray<uint32>& IndicesOfChunksToStream) = 0;
-	virtual IInterface_StreamableVolumetricAsset* GetStreamableAsset() = 0;
+	virtual TArray<IInterface_StreamableVolumetricAsset*> GetStreamableAssets() = 0;
 	virtual UObject* GetAssociatedUObject() = 0;
 };
 

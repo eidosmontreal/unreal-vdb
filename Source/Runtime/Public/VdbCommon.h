@@ -33,7 +33,7 @@ DECLARE_STATS_GROUP(TEXT("VdbOverview"), STATGROUP_VdbOverview, STATCAT_Advanced
 DECLARE_CYCLE_STAT(TEXT("RT Total"), STAT_VdbRendering_RT, STATGROUP_VdbOverview);
 DECLARE_CYCLE_STAT(TEXT("RT LevelSets"), STAT_VdbLevelSets_RT, STATGROUP_VdbOverview);
 DECLARE_CYCLE_STAT(TEXT("RT FogVolumes"), STAT_VdbFogVolumes_RT, STATGROUP_VdbOverview);
-DECLARE_CYCLE_STAT(TEXT("RT Research"), STAT_VdbResearch_RT, STATGROUP_VdbOverview);
+DECLARE_CYCLE_STAT(TEXT("RT Principled"), STAT_VdbPrincipled_RT, STATGROUP_VdbOverview);
 DECLARE_CYCLE_STAT(TEXT("RT GetDynMeshElements"), STAT_VdbSceneProxy_GetDynamicMeshElements, STATGROUP_VdbOverview);
 
 class FVdbRenderBuffer;
@@ -55,7 +55,7 @@ enum class EQuantizationType : uint8
 };
 
 UENUM()
-enum class EVdbType : uint8
+enum class EVdbClass : uint8
 {
 	FogVolume,
 	SignedDistance,
@@ -78,6 +78,7 @@ public:
 	const FIntVector& GetIndexMin() const { return IndexMin; }
 	const FIntVector& GetIndexMax() const { return IndexMax; }
 	const FMatrix44f& GetIndexToLocal() const { return IndexToLocal; }
+	const FIntVector& GetSize() const { return Size; }
 	const FBox& GetBounds() const{ return Bounds; }
 	uint64 GetMemoryUsage() const { return MemoryUsage; }
 
@@ -121,6 +122,7 @@ public:
 	const FVector3f& GetIndexMin() const { return IndexMin; }
 	const FVector3f& GetIndexSize() const { return IndexSize; }
 	const FMatrix44f& GetIndexToLocal() const { return IndexToLocal; }
+	bool IsVectorGrid() const;
 
 	bool HasNanoGridData() const;	
 

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include "VdbToVolumeTextureFactory.h"
-#include "VdbVolume.h"
+#include "VdbVolumeStatic.h"
 
 #include "Styling/SlateBrush.h"
 #include "Brushes/SlateDynamicImageBrush.h"
@@ -44,9 +44,9 @@ bool UVdbToVolumeTextureFactory::ConfigureProperties()
 }
 
 template<typename T>
-bool ReadTypedGrid(UVdbVolume* VdbVolume, UVolumeTexture* VolumeTex, const FIntVector& IndexSize, const FIntVector& IndexMin, const FIntVector& TexSize)
+bool ReadTypedGrid(UVdbVolumeStatic* VdbVolumeStatic, UVolumeTexture* VolumeTex, const FIntVector& IndexSize, const FIntVector& IndexMin, const FIntVector& TexSize)
 {
-	const nanovdb::NanoGrid<T>* Grid = VdbVolume->GetNanoGrid<T>();
+	const nanovdb::NanoGrid<T>* Grid = VdbVolumeStatic->GetNanoGrid<T>();
 	if (!Grid)
 		return false;
 
@@ -69,6 +69,42 @@ bool ReadTypedGrid(UVdbVolume* VdbVolume, UVolumeTexture* VolumeTex, const FIntV
 				float Value = Acc.getValue(xyz) / Maximum;
 				Value = FMath::Max(0.f, FMath::Min(1.f, Value)); // Clamp values to 0-1
 				Row[X] = uint8(Value * 255);
+			}
+		}
+	}
+	VolumeTex->Source.UnlockMip(0);
+
+	return true;
+}
+
+template<typename T>
+bool ReadVectorGrid(UVdbVolumeStatic* VdbVolumeStatic, UVolumeTexture* VolumeTex, const FIntVector& IndexSize, const FIntVector& IndexMin, const FIntVector& TexSize)
+{
+	const nanovdb::NanoGrid<T>* Grid = VdbVolumeStatic->GetNanoGrid<T>();
+	if (!Grid)
+		return false;
+
+	auto Acc = Grid->getAccessor(); // create an accessor for fast access to multiple values
+
+	FFloat16Color* MipData = reinterpret_cast<FFloat16Color*>(VolumeTex->Source.LockMip(0));
+	for (int32 Z = 0; Z < IndexSize.Z; ++Z)
+	{
+		for (int32 Y = 0; Y < IndexSize.Y; ++Y)
+		{
+			FFloat16Color* Row = &MipData[Y * TexSize.X + Z * TexSize.X * TexSize.Y];
+			for (int32 X = 0; X < IndexSize.X; ++X)
+			{
+				nanovdb::Coord xyz(X + IndexMin.X, Y + IndexMin.Y, Z + IndexMin.Z);
+				auto Value = Acc.getValue(xyz);
+
+				if (typeid(T) == typeid(nanovdb::Vec3f))
+				{
+					Row[X] = FFloat16Color(FLinearColor(Value[0], Value[1], Value[2], 1.0f));
+				}
+				else if (typeid(T) == typeid(nanovdb::Vec4f))
+				{
+					Row[X] = FFloat16Color(FLinearColor(Value[0], Value[1], Value[2], Value[3]));
+				}
 			}
 		}
 	}
@@ -119,7 +155,15 @@ UObject* UVdbToVolumeTextureFactory::FactoryCreateNew(UClass* Class, UObject* In
 		NewVolumeTexture->SRGB = false;
 		NewVolumeTexture->MipGenSettings = TMGS_NoMipmaps;
 		NewVolumeTexture->CompressionNone = true;
-		NewVolumeTexture->Source.Init(TexSize.X, TexSize.Y, TexSize.Z, 1, TSF_G8, nullptr); // If 16f, use TSF_RGBA16F and FFloat16Color
+		if (MetaData->gridType() == nanovdb::GridType::Vec3f ||
+			MetaData->gridType() == nanovdb::GridType::Vec4f)
+		{
+			NewVolumeTexture->Source.Init(TexSize.X, TexSize.Y, TexSize.Z, 1, TSF_RGBA16F, nullptr);
+		}
+		else
+		{
+			NewVolumeTexture->Source.Init(TexSize.X, TexSize.Y, TexSize.Z, 1, TSF_G8, nullptr);
+		}
 
 		bool Success = false;
 		
@@ -139,6 +183,12 @@ UObject* UVdbToVolumeTextureFactory::FactoryCreateNew(UClass* Class, UObject* In
 			break;
 		case nanovdb::GridType::FpN:
 			Success = ReadTypedGrid<nanovdb::FpN>(InitialVdbVolume, NewVolumeTexture, IndexSize, IndexMin, TexSize);
+			break;
+		case nanovdb::GridType::Vec3f:
+			Success = ReadVectorGrid<nanovdb::Vec3f>(InitialVdbVolume, NewVolumeTexture, IndexSize, IndexMin, TexSize);
+			break;
+		case nanovdb::GridType::Vec4f:
+			Success = ReadVectorGrid<nanovdb::Vec4f>(InitialVdbVolume, NewVolumeTexture, IndexSize, IndexMin, TexSize);
 			break;
 		default:
 			break;

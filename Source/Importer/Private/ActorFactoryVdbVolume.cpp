@@ -15,9 +15,11 @@
 #include "ActorFactoryVdbVolume.h"
 #include "AssetData.h"
 
-#include "VdbComponent.h"
+#include "VdbMaterialActor.h"
+#include "VdbAssetComponent.h"
+#include "VdbMaterialComponent.h"
 #include "VdbSequenceComponent.h"
-#include "VdbVolume.h"
+#include "VdbVolumeStatic.h"
 #include "VdbVolumeSequence.h"
 
 
@@ -25,7 +27,7 @@ UActorFactoryVdbVolume::UActorFactoryVdbVolume(const FObjectInitializer& ObjectI
 : Super(ObjectInitializer)
 {
 	DisplayName = FText::FromString("Vdb Actor");
-	NewActorClass = AVdbActor::StaticClass();
+	NewActorClass = AVdbMaterialActor::StaticClass();
 	bUseSurfaceOrientation = true;
 	bShowInEditorQuickMenu = true;
 }
@@ -53,21 +55,12 @@ void UActorFactoryVdbVolume::PostSpawnActor(UObject* Asset, AActor* NewActor)
 	UVdbVolumeBase* VdbVolume = CastChecked<UVdbVolumeBase>(Asset);
 
 	// Change properties
-	AVdbActor* VdbActor = CastChecked<AVdbActor>(NewActor);
+	AVdbMaterialActor* VdbActor = CastChecked<AVdbMaterialActor>(NewActor);
 
-	UVdbComponent* VdbComponent = VdbActor->GetVdbComponent();
-	VdbComponent->UnregisterComponent();
-	VdbComponent->VdbVolume = VdbVolume;
-	VdbComponent->RegisterComponent();
-
-	UVdbVolumeSequence* VdbVolumeSequence = Cast<UVdbVolumeSequence>(Asset);
-	if (VdbVolumeSequence)
-	{
-		UVdbSequenceComponent* VdbSequenceComponent = VdbActor->GetSeqComponent();
-		VdbSequenceComponent->UnregisterComponent();
-		VdbSequenceComponent->SetVdbSequence(VdbVolumeSequence);
-		VdbSequenceComponent->RegisterComponent();
-	}
+	UVdbAssetComponent* VdbMaterialComponent = VdbActor->GetVdbAssetComponent();
+	VdbMaterialComponent->UnregisterComponent();
+	VdbMaterialComponent->PrimaryVolume = VdbVolume;
+	VdbMaterialComponent->RegisterComponent();
 }
 
 void UActorFactoryVdbVolume::PostCreateBlueprint(UObject* Asset, AActor* CDO)
@@ -75,15 +68,8 @@ void UActorFactoryVdbVolume::PostCreateBlueprint(UObject* Asset, AActor* CDO)
 	if (Asset != NULL && CDO != NULL)
 	{
 		UVdbVolumeBase* VdbVolume = CastChecked<UVdbVolumeBase>(Asset);
-		AVdbActor* VdbActor = CastChecked<AVdbActor>(CDO);
-		UVdbComponent* VdbComponent = VdbActor->GetVdbComponent();
-		VdbComponent->VdbVolume = VdbVolume;
-
-		UVdbVolumeSequence* VdbVolumeSequence = Cast<UVdbVolumeSequence>(Asset);
-		if (VdbVolumeSequence)
-		{
-			UVdbSequenceComponent* VdbSequenceComponent = VdbActor->GetSeqComponent();
-			VdbSequenceComponent->SetVdbSequence(VdbVolumeSequence);
-		}
+		AVdbMaterialActor* VdbActor = CastChecked<AVdbMaterialActor>(CDO);
+		UVdbAssetComponent* VdbMaterialComponent = VdbActor->GetVdbAssetComponent();
+		VdbMaterialComponent->PrimaryVolume = VdbVolume;
 	}
 }

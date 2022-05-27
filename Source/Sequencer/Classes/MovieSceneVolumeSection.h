@@ -33,7 +33,7 @@ USTRUCT()
 	/** Gets the animation sequence length, not modified by play rate */
 	 float GetSequenceLength() const;
 	/** The animation this section plays */
-	UPROPERTY(EditAnywhere, Category = "Volume", DisplayName = "Volumetric Animation")
+	UPROPERTY(VisibleAnywhere, Category = "Volume", DisplayName = "Volumetric Animation")
 	TObjectPtr<UObject> Volume;
 
 	/** The offset for the first loop of the animation clip */

@@ -15,7 +15,6 @@
 #include "VdbVolumeSequence.h"
 #include "VdbCustomVersion.h"
 #include "VdbCommon.h"
-#include "VdbComponentBase.h"
 #include "VdbSequenceComponent.h"
 #include "VolumeStreamingManager.h"
 #include "Rendering/VdbRenderBuffer.h"
@@ -97,6 +96,18 @@ void UVdbVolumeSequence::Serialize(FArchive& Ar)
 	// Streamed data
 	int32 NumChunks = Chunks.Num();
 	Ar << NumChunks;
+
+	if (Ar.CustomVer(FVdbCustomVersion::GUID) < FVdbCustomVersion::LargestVolume)
+	{
+		FIntVector MaxVolumeSize = FIntVector::ZeroValue;
+		for (auto& Info : VolumeFramesInfos)
+		{
+			MaxVolumeSize.X = FMath::Max(MaxVolumeSize.X, Info.GetSize().X);
+			MaxVolumeSize.Y = FMath::Max(MaxVolumeSize.Y, Info.GetSize().Y);
+			MaxVolumeSize.Z = FMath::Max(MaxVolumeSize.Z, Info.GetSize().Z);
+		}
+		LargestVolume = MaxVolumeSize;
+	}
 
 	if (Ar.IsLoading())
 	{
@@ -249,7 +260,7 @@ void UVdbVolumeSequence::UpdateChunksNeeded(TArray<int32>& ChunksNeeded)
 				}
 			}
 
-			// Ready			
+			// Ready
 			IVolumeStreamingManager::Get().UnmapChunk(this, ChunkId);
 			return true;
 		});
@@ -321,6 +332,11 @@ bool UVdbVolumeSequence::IsGridDataInMemory(uint32 FrameIndex, bool CheckIsAlsoU
 	return !CheckIsAlsoUploadedToGPU || ((RenderInfos.GetRenderResource() != nullptr) && RenderInfos.GetRenderResource()->IsUploadFinished());
 }
 
+const FBox& UVdbVolumeSequence::GetBounds(uint32 FrameIndex) const
+{
+	return VolumeFramesInfos[FrameIndex].GetBounds();
+}
+
 const FIntVector& UVdbVolumeSequence::GetIndexMin(uint32 FrameIndex) const
 {
 	return VolumeFramesInfos[FrameIndex].GetIndexMin();
@@ -354,9 +370,6 @@ void UVdbVolumeSequence::PrepareRendering()
 {
 	// Create & init renderer resource
 	InitResources();
-
-	// Mark referencers as dirty so that the display actually refreshes with this new data
-	MarkRenderStateDirtyForAllVdbComponents(this);
 }
 
 void UVdbVolumeSequence::AddFrame(nanovdb::GridHandle<>& NanoGridHandle, EQuantizationType InQuantization)
@@ -371,6 +384,7 @@ void UVdbVolumeSequence::AddFrame(nanovdb::GridHandle<>& NanoGridHandle, EQuanti
 		UpdateFromMetadata(MetaData);
 
 		Bounds = VolumeInfosEntry->GetBounds();
+		LargestVolume = VolumeInfosEntry->GetIndexMax() - VolumeInfosEntry->GetIndexMin();
 		MemoryUsage = VolumeInfosEntry->GetMemoryUsage();
 		Quantization = InQuantization;
 		FrameMaxMemoryUsage = MemoryUsage;
@@ -380,6 +394,11 @@ void UVdbVolumeSequence::AddFrame(nanovdb::GridHandle<>& NanoGridHandle, EQuanti
 		check(DataType == FString(nanovdb::toStr(MetaData->gridType())));
 		check(Class == FString(nanovdb::toStr(MetaData->gridClass())));
 		check(GridName == MetaData->shortGridName());
+
+		const FIntVector& IndexVolume = VolumeInfosEntry->GetIndexMax() - VolumeInfosEntry->GetIndexMin();
+		LargestVolume.X = FMath::Max(LargestVolume.X, IndexVolume.X);
+		LargestVolume.Y = FMath::Max(LargestVolume.Y, IndexVolume.Y);
+		LargestVolume.Z = FMath::Max(LargestVolume.Z, IndexVolume.Z);
 
 		Bounds += VolumeInfosEntry->GetBounds();
 		uint64 MemUsage = VolumeInfosEntry->GetMemoryUsage();
