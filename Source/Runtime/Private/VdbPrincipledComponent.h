@@ -66,11 +66,11 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 
 	// Volume scattering color. This acts as a multiplier on the scatter color, to texture the color of the volume.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Volume")
-	FLinearColor Color = FLinearColor(10.0, 10.0, 10.0, 1.0);
+	FLinearColor Color = FLinearColor(1.0, 1.0, 1.0, 1.0);
 
 	// Density multiplier of the volume, modulating VdbDensity values 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Volume", meta = (ClampMin = "0.00001", UIMin = "0.00001"))
-	float DensityMultiplier = 1.0;
+	float DensityMultiplier = 10.0;
 
 	// Describes the probability of scattering (versus absorption) at a scattering event. Between 0 and 1.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Volume", meta = (UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "1.0"))

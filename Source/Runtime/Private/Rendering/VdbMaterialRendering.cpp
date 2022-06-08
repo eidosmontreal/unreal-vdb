@@ -34,16 +34,6 @@ static TAutoConsoleVariable<int32> CVarVolumetricVdb(
 	TEXT("VolumetricVdb components are rendered when this is not 0, otherwise ignored."),
 	ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarVolumetricVdbMaxRayDepth(
-	TEXT("r.Vdb.MaxRayDepth"), 0,
-	TEXT("The maximum number of ray marching iterations inside the volume. Used only if > 0. Otherwise, fallback to engine value."),
-	ECVF_RenderThreadSafe | ECVF_Scalability);
-
-static TAutoConsoleVariable<int32> CVarVolumetricVdbSamples(
-	TEXT("r.Vdb.SamplesPerPixel"), 0,
-	TEXT("Number of samples per pixel, while raymarching through the volume. Used only if > 0. Otherwise, fallback to engine value."),
-	ECVF_RenderThreadSafe | ECVF_Scalability);
-
 static TAutoConsoleVariable<int32> CVarVolumetricVdbDenoiser(
 	TEXT("r.Vdb.Denoiser"), -1,
 	TEXT("Denoiser method applied on Vdb FogVolumes. Used only if >= 0. Otherwise, fallback to engine value."),
@@ -60,17 +50,18 @@ public:
 		const FScene* Scene,
 		const FSceneView* InView,
 		FMeshPassDrawListContext* InDrawListContext,
-		bool IsLevelSet,
+		bool IsLevelSet, bool IsTranslucentLevelSet,
 		bool UseSecondaryVdb,
 		FVdbElementData&& ShaderElementData)
 		: FMeshPassProcessor(Scene, Scene->GetFeatureLevel(), InView, InDrawListContext)
 		, VdbShaderElementData(ShaderElementData)
 		, bLevelSet(IsLevelSet)
+		, bTranslucentLevelSet(IsTranslucentLevelSet)
 		, bSecondaryVdb(UseSecondaryVdb)
 	{
 		PassDrawRenderState.SetViewUniformBuffer(InView->ViewUniformBuffer);
 
-		if (bLevelSet)
+		if (bLevelSet && !bTranslucentLevelSet)
 		{
 			PassDrawRenderState.SetBlendState(TStaticBlendState<>::GetRHI());
 			PassDrawRenderState.SetDepthStencilState(TStaticDepthStencilState<true, CF_DepthNearOrEqual>::GetRHI());
@@ -93,7 +84,14 @@ public:
 			const ERasterizerCullMode MeshCullMode = CM_None;
 			if (bLevelSet)
 			{
-				Process<FVdbShaderVS, FVdbShaderPS_LevelSet>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
+				if (bTranslucentLevelSet)
+				{
+					Process<FVdbShaderVS, FVdbShaderPS_LevelSet_Translucent>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
+				}
+				else
+				{
+					Process<FVdbShaderVS, FVdbShaderPS_LevelSet>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
+				}
 			}
 			else
 			{
@@ -150,6 +148,7 @@ private:
 	FMeshPassProcessorRenderState PassDrawRenderState;
 	FVdbElementData VdbShaderElementData;
 	bool bLevelSet;
+	bool bTranslucentLevelSet;
 	bool bSecondaryVdb;
 };
 
@@ -296,24 +295,24 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 
 	const FSceneView* View = static_cast<FSceneView*>(Parameters.Uid);
 
-	TArray<FVdbMaterialSceneProxy*> LeveSetProxies = VdbProxies.FilterByPredicate([View](const FVdbMaterialSceneProxy* Proxy) { return Proxy->IsLevelSet() && Proxy->IsVisible(View); });
-	TArray<FVdbMaterialSceneProxy*> FogVolumeProxies = VdbProxies.FilterByPredicate([View](const FVdbMaterialSceneProxy* Proxy) { return !Proxy->IsLevelSet() && Proxy->IsVisible(View); });
+	TArray<FVdbMaterialSceneProxy*> OpaqueProxies = VdbProxies.FilterByPredicate([View](const FVdbMaterialSceneProxy* Proxy) { return !Proxy->IsTranslucent() && Proxy->IsVisible(View); });
+	TArray<FVdbMaterialSceneProxy*> TranslucentProxies = VdbProxies.FilterByPredicate([View](const FVdbMaterialSceneProxy* Proxy) { return Proxy->IsTranslucent() && Proxy->IsVisible(View); });
 
 	const FMatrix& ViewMat = View->ViewMatrices.GetViewMatrix();
-	LeveSetProxies.Sort([ViewMat](const FVdbMaterialSceneProxy& Lhs, const FVdbMaterialSceneProxy& Rhs) -> bool 
+	OpaqueProxies.Sort([ViewMat](const FVdbMaterialSceneProxy& Lhs, const FVdbMaterialSceneProxy& Rhs) -> bool 
 		{ 
 			const FVector& LeftProxyCenter = Lhs.GetBounds().GetSphere().Center;
 			const FVector& RightProxyCenter = Rhs.GetBounds().GetSphere().Center;
 			return ViewMat.TransformPosition(LeftProxyCenter).Z < ViewMat.TransformPosition(RightProxyCenter).Z; // front to back
 		});
-	FogVolumeProxies.Sort([ViewMat](const FVdbMaterialSceneProxy& Lhs, const FVdbMaterialSceneProxy& Rhs) -> bool
+	TranslucentProxies.Sort([ViewMat](const FVdbMaterialSceneProxy& Lhs, const FVdbMaterialSceneProxy& Rhs) -> bool
 		{
 			const FVector& LeftProxyCenter = Lhs.GetBounds().GetSphere().Center;
 			const FVector& RightProxyCenter = Rhs.GetBounds().GetSphere().Center;
 			return ViewMat.TransformPosition(LeftProxyCenter).Z > ViewMat.TransformPosition(RightProxyCenter).Z; // back to front
 		});
 
-	auto DrawVdbProxies = [&](const TArray<FVdbMaterialSceneProxy*>& Proxies, bool IsLevelSet, TRDGUniformBufferRef<FVdbShaderParams> VdbUniformBuffer, FRDGTexture* RenderTexture)
+	auto DrawVdbProxies = [&](const TArray<FVdbMaterialSceneProxy*>& Proxies, bool Translucent, TRDGUniformBufferRef<FVdbShaderParams> VdbUniformBuffer, FRDGTexture* RenderTexture)
 	{
 		FRDGBuilder& GraphBuilder = *Parameters.GraphBuilder;
 
@@ -333,7 +332,7 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 		}
 
 		GraphBuilder.AddPass(
-			IsLevelSet ? RDG_EVENT_NAME("Vdb LevelSet Rendering") : RDG_EVENT_NAME("Vdb FogVolume Rendering"),
+			Translucent ? RDG_EVENT_NAME("Vdb Translucent Rendering") : RDG_EVENT_NAME("Vdb Opaque Rendering"),
 			PassParameters,
 			ERDGPassFlags::Raster,
 			[this, &InView = *View, ViewportRect = Parameters.ViewportRect, Proxies](FRHICommandListImmediate& RHICmdList)
@@ -361,7 +360,7 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 								InView.Family->Scene->GetRenderScene(),
 								&InView,
 								DynamicMeshPassContext,
-								Proxy->IsLevelSet(),
+								Proxy->IsLevelSet(), Proxy->IsTranslucentLevelSet(),
 								ShaderElementData.SecondaryBufferSRV != nullptr,
 								MoveTemp(ShaderElementData));
 
@@ -384,30 +383,26 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 
 	FRDGBuilder& GraphBuilder = *Parameters.GraphBuilder;
 
-	uint32 Samples = CVarVolumetricVdbSamples.GetValueOnAnyThread() > 0 ? (uint32)CVarVolumetricVdbSamples.GetValueOnAnyThread() : NbSamples;
-	uint32 RayDepth = CVarVolumetricVdbMaxRayDepth.GetValueOnAnyThread() > 0 ? (uint32)CVarVolumetricVdbMaxRayDepth.GetValueOnAnyThread() : MaxRayDepth;
-
 	FVdbShaderParams* UniformParameters = GraphBuilder.AllocParameters<FVdbShaderParams>();
-	UniformParameters->SamplesPerPixel = Samples;
-	UniformParameters->MaxRayDepth = RayDepth;
 	UniformParameters->SceneDepthTexture = Parameters.DepthTexture;
 	TRDGUniformBufferRef<FVdbShaderParams> VdbUniformBuffer = GraphBuilder.CreateUniformBuffer(UniformParameters);
 
-	if (!LeveSetProxies.IsEmpty())
+	if (!OpaqueProxies.IsEmpty())
 	{
-		SCOPE_CYCLE_COUNTER(STAT_VdbLevelSets_RT);
-		DrawVdbProxies(LeveSetProxies, true, VdbUniformBuffer, nullptr);
+		SCOPE_CYCLE_COUNTER(STAT_VdbOpaque_RT);
+		DrawVdbProxies(OpaqueProxies, false, VdbUniformBuffer, nullptr);
 	}
 
-	if (!FogVolumeProxies.IsEmpty())
+	if (!TranslucentProxies.IsEmpty())
 	{
-		SCOPE_CYCLE_COUNTER(STAT_VdbFogVolumes_RT);
+		SCOPE_CYCLE_COUNTER(STAT_VdbTranslucent_RT);
 
 		FRDGTextureDesc TexDesc = Parameters.ColorTexture->Desc;
+		TexDesc.Format = PF_FloatRGBA; // force RGBA. Depending on quality settings, ColorTexture might not have alpha
 		TexDesc.ClearValue = FClearValueBinding(FLinearColor::Transparent);
 		FRDGTexture* VdbCurrRenderTexture = GraphBuilder.CreateTexture(TexDesc, TEXT("VdbRenderTexture"));
 
-		DrawVdbProxies(FogVolumeProxies, false, VdbUniformBuffer, VdbCurrRenderTexture);
+		DrawVdbProxies(TranslucentProxies, true, VdbUniformBuffer, VdbCurrRenderTexture);
 
 		// Add optional post-processing (blurring, denoising etc.)
 		EVdbDenoiserMethod Method = CVarVolumetricVdbDenoiser.GetValueOnAnyThread() >= 0 ?

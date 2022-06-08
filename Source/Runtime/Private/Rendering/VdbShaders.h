@@ -68,8 +68,6 @@ public:
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVdbShaderParams, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneDepthTexture)
-	SHADER_PARAMETER(uint32, SamplesPerPixel)
-	SHADER_PARAMETER(uint32, MaxRayDepth)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FVdbShaderParametersPS, )
@@ -140,6 +138,7 @@ public:
 	}
 };
 typedef FVdbShaderPS<true, false> FVdbShaderPS_LevelSet;
+typedef FVdbShaderPS<true, true> FVdbShaderPS_LevelSet_Translucent; // reusing USE_SECONDARY_VDB variation for translucency to avoid another variation
 typedef FVdbShaderPS<false, false>  FVdbShaderPS_FogVolume;
 typedef FVdbShaderPS<false, true>  FVdbShaderPS_FogVolume_Blackbody;
 
@@ -203,7 +202,8 @@ class FVdbPrincipledPS : public FGlobalShader
 
 	class FPathTracing : SHADER_PERMUTATION_BOOL("PATH_TRACING");
 	class FUseTemperature : SHADER_PERMUTATION_BOOL("USE_TEMPERATURE");
-	using FPermutationDomain = TShaderPermutationDomain<FPathTracing, FUseTemperature>;
+	class FLevelSet : SHADER_PERMUTATION_BOOL("LEVEL_SET");
+	using FPermutationDomain = TShaderPermutationDomain<FPathTracing, FUseTemperature, FLevelSet>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Scene / Unreal data

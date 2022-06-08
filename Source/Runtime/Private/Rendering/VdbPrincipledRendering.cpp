@@ -222,7 +222,7 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 	const FIntRect& ViewportRect = Parameters.ViewportRect;
 
 	// Sort back to front. Ignore frustum visibility
-	TArray<FVdbPrincipledSceneProxy*> SortedVdbProxies = VdbProxies.FilterByPredicate([View](const FVdbPrincipledSceneProxy* Proxy) { return Proxy->IsVisible(View) && !Proxy->IsLevelSet(); });
+	TArray<FVdbPrincipledSceneProxy*> SortedVdbProxies = VdbProxies.FilterByPredicate([View](const FVdbPrincipledSceneProxy* Proxy) { return Proxy->IsVisible(View); });
 	SortedVdbProxies.Sort([ViewMat = View->ViewMatrices.GetViewMatrix()](const FVdbPrincipledSceneProxy& Lhs, const FVdbPrincipledSceneProxy& Rhs) -> bool
 	{
 		const FVector& LeftProxyCenter = Lhs.GetBounds().GetSphere().Center;
@@ -279,6 +279,7 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 			FVdbPrincipledPS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FVdbPrincipledPS::FPathTracing>(UsePathTracing);
 			PermutationVector.Set<FVdbPrincipledPS::FUseTemperature>(Proxy->GetParams().VdbTemperature != nullptr);
+			PermutationVector.Set<FVdbPrincipledPS::FLevelSet>(Proxy->IsLevelSet());
 
 			FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 			TShaderMapRef<FVdbPrincipledVS> VertexShader(GlobalShaderMap);

@@ -79,8 +79,8 @@ float3 GetShadowTransmittance(
 	if (!hit)
 		return 1.0f;
 
-	float StepSize = VdbPrincipledParams.StepSize * StepMultiplier / VdbPrincipledParams.VoxelSize; // Index space
 	float RaymarchDistance = ShadowRay.TMax - ShadowRay.TMin; // Index space
+	float StepSize = VdbPrincipledParams.StepSize * StepMultiplier / VdbPrincipledParams.VoxelSize; // Index space
 	const uint NumSteps = min(ceil(RaymarchDistance / StepSize), VdbPrincipledParams.MaxRayDepth);
 	float StepWorldMeters = StepSize * CENTIMETER_TO_METER;
 
@@ -90,7 +90,11 @@ float3 GetShadowTransmittance(
 		float s = ShadowRay.TMin + (iStep + RandomSequence_GenerateSample1D(RandSequence)) * StepSize;
 		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(ShadowRay.Origin, s, ShadowRay.Direction);
 
+#if LEVEL_SET
+		float Density = ReadValue(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor) < 0.0 ? 1.0 : 0.0;
+#else
 		float Density = ReadValue(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
+#endif
 		AccumDensity += Density * Medium.densityScale;
 	}
 	return exp(-AccumDensity * StepWorldMeters * SigmaT);
@@ -108,7 +112,7 @@ float4 RaymarchVolume(
 	pnanovdb_vec3_t lightDir,
 	pnanovdb_vec3_t lightCol)
 {
-	if (!pnanovdb_hdda_ray_clip(bbox_min, bbox_max, Ray.Origin, Ray.TMin, Ray.Direction, Ray.TMax))
+	if (!CheckBounds(Ray, bbox_min, bbox_max))
 	{
 		return float4(0.0, 0.0, 0.0, 0.0);
 	}
@@ -122,54 +126,76 @@ float4 RaymarchVolume(
 	float3 LightCol = View.DirectionalLightColor.xyz;
 	float CosThetaPhase = dot(LightDir, Ray.Direction);
 
-	float IndexToWorldMeters = IndexToWorldDistance(Ray.Direction, VdbPrincipledParams.LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid) * CENTIMETER_TO_METER;
-
 	float3 Radiance = 0.0;
 	float3 Transmittance = 1.0;
+
+#if LEVEL_SET
+	// ------------------------------------------------------------------------
+	// Test first intersection
+
+	ZeroCrossingHit HitResults;
+	if (!GetNextIntersection(DensitySampler, Ray, HitResults))
+	{
+		return float4(0.0, 0.0, 0.0, 0.0);
+	}
+
+	bool bInside = HitResults.v0 > 0.0;
+	// If we're inside the volume, start raymarching at camera position, otherwise skip empty space
+	float StartDistance = bInside ? Ray.TMin : HitResults.t_hit;
+#else
+	float StartDistance = Ray.TMin;
+#endif
 
 	// ------------------------------------------------------------------------
 	// Raymarch with fixed steps
 
 	float StepSize = VdbPrincipledParams.StepSize / VdbPrincipledParams.VoxelSize; // Index space
-	float RaymarchDistance = Ray.TMax - Ray.TMin; // Index space
+	float RaymarchDistance = Ray.TMax - StartDistance; // Index space
 	const uint NumSteps = min(ceil(RaymarchDistance / StepSize), VdbPrincipledParams.MaxRayDepth);
 	float StepWorldMeters = StepSize * CENTIMETER_TO_METER;
 
 	for (uint iStep = 0; iStep < NumSteps; ++iStep)
 	{
-		float s = Ray.TMin + (iStep + RandomSequence_GenerateSample1D(RandSequence)) * StepSize;
+		float s = StartDistance + (iStep + RandomSequence_GenerateSample1D(RandSequence)) * StepSize;
 		if (s >= Ray.TMax)
 			break;
 
 		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
 
-		float Density = SAMPLING(s, Ray, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor) * Medium.densityScale;
+#if LEVEL_SET
+		float Density = SAMPLING(s, Ray, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor) < 0.0 ? 1.0 : 0.0;
+#else
+		float Density = SAMPLING(s, Ray, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
+#endif
+		Density *= Medium.densityScale;
+
+		if (Density == 0.0) continue;
 
 		float3 SigmaT = VdbPrincipledParams.Color.rgb; // Extinction
 		float3 SigmaS = SigmaT * Medium.albedo; // Scattering
 		float3 SigmaA = SigmaT - SigmaS; // Absorption
 
-		float StepTransmittance = Transmittance * StepWorldMeters * Density;
+		// Using average instead of float3 value, to avoid weird color shifts
+		float StepTransmittance = Average(Transmittance) * StepWorldMeters * Density;
 
 		// Single scattering from Directional light or Environment
-		float LightSources = VdbPrincipledParams.UseDirectionalLight + VdbPrincipledParams.UseEnvironmentLight; // nice trick from SebH
 		if (VdbPrincipledParams.UseDirectionalLight)
 		{
 			float3 ShadowDirection = LightDir;
-			float ShadowTransmittance = GetShadowTransmittance(DensitySampler, bbox_min, bbox_max, iPos, ShadowDirection, Medium, 2.0, SigmaT, RandSequence);
-			Radiance += StepTransmittance * SigmaS * LightCol * ShadowTransmittance * PhaseHG(CosThetaPhase, Medium.anisotropy);
+			float3 ShadowTransmittance = GetShadowTransmittance(DensitySampler, bbox_min, bbox_max, iPos, ShadowDirection, Medium, 2.0, SigmaT, RandSequence);
+			Radiance += StepTransmittance * SigmaS * LightCol * Average(ShadowTransmittance) * PhaseHG(CosThetaPhase, Medium.anisotropy);
 		}
 		if (VdbPrincipledParams.UseEnvironmentLight)
 		{
 			// Random sample in entire sphere direction to capture Ambient environment
 			float2 rnd = RandomSequence_GenerateSample2D(RandSequence);
 			float3 ShadowDirection = SampleHenyeyGreenstein(0.0, rnd.x, rnd.y);
-			float ShadowTransmittance = GetShadowTransmittance(DensitySampler, bbox_min, bbox_max, iPos, ShadowDirection, Medium, 4.0, SigmaT, RandSequence);
+			float3 ShadowTransmittance = GetShadowTransmittance(DensitySampler, bbox_min, bbox_max, iPos, ShadowDirection, Medium, 4.0, SigmaT, RandSequence);
 			
 			float3 WorldDir = IndexToWorldDirection(ShadowDirection, VdbPrincipledParams.LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
 			float3 IncomingRadiance = GetSkySHDiffuse(WorldDir) * View.SkyLightColor.rgb;
 
-			Radiance += StepTransmittance * SigmaS * IncomingRadiance * ShadowTransmittance;
+			Radiance += StepTransmittance * SigmaS * IncomingRadiance * Average(ShadowTransmittance);
 		}
 
 #if USE_TEMPERATURE
@@ -183,7 +209,7 @@ float4 RaymarchVolume(
 		// Regular emissive
 		Radiance += StepTransmittance * SigmaA * VdbPrincipledParams.EmissionStrength * VdbPrincipledParams.EmissionColor;
 
-		Transmittance *= exp(-SigmaT * Density * StepWorldMeters);
+		Transmittance *= exp(-StepWorldMeters * Density * SigmaT);
 
 		if (all(Transmittance < 0.01f))
 		{
@@ -194,6 +220,7 @@ float4 RaymarchVolume(
 
 	return float4(Radiance, 1.0 - Average(Transmittance));
 }
+
 
 float4 VdbFogVolume(uint2 LaunchIndex)
 {
@@ -217,7 +244,6 @@ float4 VdbFogVolume(uint2 LaunchIndex)
 	float root_max_val = pnanovdb_read_float(DensitySampler.GridBuffer, pnanovdb_root_get_max_address(DensitySampler.GridType, DensitySampler.GridBuffer, root));
 	pnanovdb_vec3_t bbox_min = pnanovdb_coord_to_vec3(pnanovdb_root_get_bbox_min(DensitySampler.GridBuffer, root));
 	pnanovdb_vec3_t bbox_max = pnanovdb_coord_to_vec3(pnanovdb_root_get_bbox_max(DensitySampler.GridBuffer, root));
-
 
 	// ------------------------------------------------------------------------------------------------------
 	// Prepare variables

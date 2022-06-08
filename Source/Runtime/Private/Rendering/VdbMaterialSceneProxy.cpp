@@ -30,6 +30,7 @@ FVdbMaterialSceneProxy::FVdbMaterialSceneProxy(const UVdbAssetComponent* AssetCo
 	, Material(InComponent->GetMaterial(0))
 {
 	LevelSet = AssetComponent->GetVdbClass() == EVdbClass::SignedDistance;
+	TranslucentLevelSet = LevelSet && InComponent->TranslucentLevelSet;
 	VdbMaterialRenderExtension = FVolumeRuntimeModule::GetRenderExtension();
 
 	const FVolumeRenderInfos* PrimaryRenderInfos = AssetComponent->GetRenderInfos(AssetComponent->PrimaryVolume);
@@ -43,7 +44,7 @@ FVdbMaterialSceneProxy::FVdbMaterialSceneProxy(const UVdbAssetComponent* AssetCo
 
 	CustomIntData0 = FIntVector4(InComponent->MaxRayDepth, InComponent->SamplesPerPixel, 0, 0);
 	float VoxelSize = AssetComponent->PrimaryVolume->GetVoxelSize();
-	CustomFloatData0 = FVector4f(InComponent->LocalStepSize, InComponent->ShadowStepSizeMultiplier, VoxelSize, 0.f);
+	CustomFloatData0 = FVector4f(InComponent->LocalStepSize, InComponent->ShadowStepSizeMultiplier, VoxelSize, InComponent->Jittering);
 	CustomFloatData1 = FVector4f(InComponent->Anisotropy, 0.f, InComponent->BlackbodyIntensity, InComponent->BlackbodyTemperature);
 }
 

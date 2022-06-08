@@ -17,7 +17,7 @@
 #include "/Engine/Private/Random.ush"
 #include "/Engine/Private/ReflectionEnvironmentShared.ush"
 
-#include "/Engine/Generated/Material.ush"
+#include "/Plugin/VdbVolume/Private/VdbMaterial.ush"
 #include "/Engine/Generated/VertexFactory.ush"
 #include "/Plugin/VdbVolume/Private/VdbCommon.ush"
 
@@ -33,11 +33,10 @@ StructuredBuffer<uint>	SecondaryVdbBuffer;
 #define MAX_NUM_STEPS uint(CustomIntData0.x)
 #define SAMPLES_PER_PIXEL uint(CustomIntData0.y)
 #define SAMPLES_PER_PIXEL_FLOAT float(CustomIntData0.y)
-
 #define LOCAL_STEP_SIZE CustomFloatData0.x
 #define SHADOW_STEP_SIZE_MULT CustomFloatData0.y
 #define VOXEL_SIZE CustomFloatData0.z
-
+#define JITTER_MULT CustomFloatData0.w
 #define ANISOTROPY CustomFloatData1.x
 #define BLACKBODY_INTENSITY CustomFloatData1.z
 #define BLACKBODY_TEMPERATURE CustomFloatData1.w
@@ -47,55 +46,6 @@ StructuredBuffer<uint>	SecondaryVdbBuffer;
 #else
 	#define SAMPLING ReadValue
 #endif
-
-//-----------------------------------------------------------------------------------------------------------
-// Unreal Volumetric Material specific
-//-----------------------------------------------------------------------------------------------------------
-
-void UpdateMaterialParam(
-	inout FMaterialPixelParameters MaterialParameters,
-	float3 AbsoluteWorldPosition,
-	in ViewState InputView)
-{
-	MaterialParameters.AbsoluteWorldPosition = LWCPromote(AbsoluteWorldPosition);
-	MaterialParameters.WorldPosition_CamRelative = LWCToFloat(LWCAdd(MaterialParameters.AbsoluteWorldPosition, InputView.PreViewTranslation));
-	//MaterialParameters.WorldPosition_NoOffsets;				// TODO
-	//MaterialParameters.WorldPosition_NoOffsets_CamRelative;	// TODO
-	MaterialParameters.CameraVector = normalize(LWCToFloat(LWCSubtract(InputView.WorldCameraOrigin, MaterialParameters.AbsoluteWorldPosition)));
-}
-
-half3 SampleExtinctionCoefficients(in FPixelMaterialInputs PixelMaterialInputs)
-{
-	// w value is not set. don't try to use it
-	half3 Extinction = GetMaterialSubsurfaceDataRaw(PixelMaterialInputs).xyz;
-	return Extinction;
-}
-
-half3 SampleEmissive(in FPixelMaterialInputs PixelMaterialInputs)
-{
-	half3 EmissiveColor = GetMaterialEmissiveRaw(PixelMaterialInputs);
-	return clamp(EmissiveColor, 0.0f, 65000.0f);
-}
-
-// RGB is volume scattering color
-half3 SampleScattering(in FPixelMaterialInputs PixelMaterialInputs)
-{
-	half3 Scattering = 1.0;
-#if !MATERIAL_SHADINGMODEL_UNLIT
-	Scattering = GetMaterialBaseColorRaw(PixelMaterialInputs).rgb;
-#endif
-	return Scattering;
-}
-
-// Volume albdeo, i.e the probability of scattering versus absorbing
-half SampleAlbedo(in FPixelMaterialInputs PixelMaterialInputs)
-{
-#if MATERIAL_SHADINGMODEL_UNLIT
-	return 0.0;
-#else
-	return GetMaterialAmbientOcclusion(PixelMaterialInputs);
-#endif
-}
 
 // Raymarch towards light. Compute shadow transmittance
 float3 GetLightTransmittance(
@@ -122,7 +72,7 @@ float3 GetLightTransmittance(
 	float AccumDensity = 0.0;
 	for (uint iStep = 0; iStep < NumSteps; ++iStep)
 	{
-		float s = Ray.TMin + (iStep + RandomSequence_GenerateSample1D(RandSequence)) * StepSize;
+		float s = Ray.TMin + (iStep + lerp(0.5, RandomSequence_GenerateSample1D(RandSequence), JITTER_MULT)) * StepSize;
 		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
 
 		// Update coordinates
@@ -168,7 +118,7 @@ float4 RaymarchFogVolume(
 	// ------------------------------------------------------------------------
 	// Set up lighting
 
-	float Transmittance = 1.f;
+	float3 Transmittance = 1.f;
 	float3 Radiance = 0.0;
 
 #if !MATERIAL_SHADINGMODEL_UNLIT
@@ -191,7 +141,7 @@ float4 RaymarchFogVolume(
 
 	for (uint iStep = 0; iStep < NumSteps; ++iStep)
 	{
-		float s = Ray.TMin + (iStep + RandomSequence_GenerateSample1D(RandSequence)) * StepSize;
+		float s = Ray.TMin + (iStep + lerp(0.5, RandomSequence_GenerateSample1D(RandSequence), JITTER_MULT)) * StepSize;
 		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
 
 		// Update coordinates
@@ -219,7 +169,8 @@ float4 RaymarchFogVolume(
 		// ------------------------------------------------------------------------
 		// Update total Radiance with all incoming ligth sources
 
-		float StepTransmittance = Transmittance * StepWorldMeters * Density;
+		// Using average instead of float3 value, to avoid weird color shifts
+		float StepTransmittance = Average(Transmittance) * StepWorldMeters * Density;
 
 		Radiance += StepTransmittance * SigmaA * EmissiveColor; // Emissive
 #if !MATERIAL_SHADINGMODEL_UNLIT
@@ -233,11 +184,11 @@ float4 RaymarchFogVolume(
 			ShadowRay.TMin = 0.0f;
 			ShadowRay.TMax = POSITIVE_INFINITY;
 
-			float LightTransmittance = GetLightTransmittance(
+			float3 LightTransmittance = GetLightTransmittance(
 				bbox_min, bbox_max, ShadowRay, 
 				DensitySampler, SigmaT, 
 				LocalToWorld, RandSequence, MaterialParameters);
-			Radiance += StepTransmittance * SigmaS * LightTransmittance * LightCol * PhaseHG(CosThetaPhase, Anisotropy);
+			Radiance += StepTransmittance * SigmaS * Average(LightTransmittance) * LightCol * PhaseHG(CosThetaPhase, Anisotropy);
 		}
 #endif
 
@@ -252,12 +203,12 @@ float4 RaymarchFogVolume(
 		// Update Transmittance
 		Transmittance *= exp(-StepWorldMeters * Density * SigmaT);
 
-		const float Threshhold = 0.01f;
-		if (all(Transmittance < Threshhold))
+		const float Threshold = 0.01f;
+		if (all(Transmittance < Threshold))
 		{
 #if !MATERIAL_SHADINGMODEL_UNLIT
 			// Artificially boosting missing ambient contribution. I'm making this up.
-			Radiance += Threshhold * SigmaS * EnvLight; 
+			Radiance += Threshold * SigmaS * EnvLight; 
 #endif
 			Transmittance = 0.0;
 			break;

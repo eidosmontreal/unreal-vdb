@@ -281,6 +281,14 @@ pnanovdb_vec3_t ZeroCrossingNormal(pnanovdb_uint32_t grid_type, pnanovdb_buf_t g
 	return normalize(iNormal);
 }
 
+pnanovdb_bool_t GetNextIntersection(
+	VdbSampler LsSampler,
+	in out VdbRay iRay,
+	in out ZeroCrossingHit HitResults)
+{
+	return pnanovdb_hdda_zero_crossing_improved(LsSampler.GridType, LsSampler.GridBuffer, LsSampler.Accessor, iRay.Origin, iRay.TMin, iRay.Direction, iRay.TMax, HitResults.t_hit, HitResults.v0, HitResults.ijk_hit);
+}
+
 //-----------------------------------------------------------------------------------------------------------
 // Fog Volume specific
 //-----------------------------------------------------------------------------------------------------------
@@ -361,13 +369,6 @@ float GetTransmittance(
 	return transmittance;
 }
 
-float UpdateDensity(float Density, half3 Extinction)
-{
-	// This will evolve to something more complicated soon.
-	return Density * Extinction.x;
-}
-
-
 // Cf FLinearColor::MakeFromColorTemperature
 float3 ColorTemperatureToRGB(float Temp)
 {
@@ -400,6 +401,5 @@ float Average(float3 Value)
 {
 	return dot(Value, 1.0/3.0);
 }
-
 
 #endif // D_VDB_VOLUMETRIC_COMMON

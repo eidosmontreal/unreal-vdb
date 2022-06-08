@@ -206,7 +206,7 @@ bool VdbFileUtils::GetVdbFrameInfos(const FString& Filepath, int32 FrameIndex, u
 			GridAnimationInfos.GridType = FString(grid->valueType().c_str());
 			GridAnimationInfos.GridClass = FString(grid->gridClassToString(grid->getGridClass()).c_str());
 			GridAnimationInfos.MinValue = TNumericLimits<float>::Max();
-			GridAnimationInfos.MaxValue = TNumericLimits<float>::Min();
+			GridAnimationInfos.MaxValue = TNumericLimits<float>::Lowest();
 			GridAnimationInfos.WorldSpaceBBox.Init();
 
 			// Reserve space for all frames in the animation
@@ -309,7 +309,7 @@ bool VdbFileUtils::GetVdbFrameInfos(const FString& Filepath, int32 FrameIndex, u
 
 			// Extract all active voxel values and update current frame's min/max value
 			GridFrameInfos.MinValue = TNumericLimits<float>::Max();
-			GridFrameInfos.MaxValue = TNumericLimits<float>::Min();
+			GridFrameInfos.MaxValue = TNumericLimits<float>::Lowest();
 
 			GridFrameInfos.VoxelValues.Reserve(GridFrameInfos.ActiveVoxelCount);
 			for (openvdb::FloatGrid::ValueOnIter iter = FloatGrid->beginValueOn(); iter; ++iter)

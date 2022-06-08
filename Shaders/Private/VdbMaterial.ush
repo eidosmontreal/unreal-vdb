@@ -1,0 +1,71 @@
+// Copyright 2022 Eidos-Montreal / Eidos-Sherbrooke
+
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http ://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#ifndef D_VDB_MATERIAL_COMMON
+#define D_VDB_MATERIAL_COMMON
+
+#include "/Engine/Generated/Material.ush"
+
+void UpdateMaterialParam(
+	inout FMaterialPixelParameters MaterialParameters,
+	float3 AbsoluteWorldPosition,
+	in ViewState InputView)
+{
+	MaterialParameters.AbsoluteWorldPosition = LWCPromote(AbsoluteWorldPosition);
+	MaterialParameters.WorldPosition_CamRelative = LWCToFloat(LWCAdd(MaterialParameters.AbsoluteWorldPosition, InputView.PreViewTranslation));
+	//MaterialParameters.WorldPosition_NoOffsets;				// TODO
+	//MaterialParameters.WorldPosition_NoOffsets_CamRelative;	// TODO
+	MaterialParameters.CameraVector = normalize(LWCToFloat(LWCSubtract(InputView.WorldCameraOrigin, MaterialParameters.AbsoluteWorldPosition)));
+}
+
+half3 SampleExtinctionCoefficients(in FPixelMaterialInputs PixelMaterialInputs)
+{
+	// w value is not set. don't try to use it
+	half3 Extinction = GetMaterialSubsurfaceDataRaw(PixelMaterialInputs).xyz;
+	return Extinction;
+}
+
+half3 SampleEmissive(in FPixelMaterialInputs PixelMaterialInputs)
+{
+	half3 EmissiveColor = GetMaterialEmissiveRaw(PixelMaterialInputs);
+	return clamp(EmissiveColor, 0.0f, 65000.0f);
+}
+
+// RGB is volume scattering color
+half3 SampleScattering(in FPixelMaterialInputs PixelMaterialInputs)
+{
+	half3 Scattering = 1.0;
+#if !MATERIAL_SHADINGMODEL_UNLIT
+	Scattering = GetMaterialBaseColorRaw(PixelMaterialInputs).rgb;
+#endif
+	return Scattering;
+}
+
+// Volume albdeo, i.e the probability of scattering versus absorbing
+half SampleAlbedo(in FPixelMaterialInputs PixelMaterialInputs)
+{
+#if MATERIAL_SHADINGMODEL_UNLIT
+	return 0.0;
+#else
+	return GetMaterialAmbientOcclusion(PixelMaterialInputs);
+#endif
+}
+
+float UpdateDensity(float Density, half3 Extinction)
+{
+	// This will evolve to something more complicated soon.
+	return Density * Extinction.x;
+}
+
+#endif // D_VDB_MATERIAL_COMMON

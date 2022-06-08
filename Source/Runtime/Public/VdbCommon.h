@@ -31,8 +31,8 @@ DECLARE_MEMORY_STAT(TEXT("Vdb GPU data interface memory"), STAT_VdbGPUDataInterf
 
 DECLARE_STATS_GROUP(TEXT("VdbOverview"), STATGROUP_VdbOverview, STATCAT_Advanced);
 DECLARE_CYCLE_STAT(TEXT("RT Total"), STAT_VdbRendering_RT, STATGROUP_VdbOverview);
-DECLARE_CYCLE_STAT(TEXT("RT LevelSets"), STAT_VdbLevelSets_RT, STATGROUP_VdbOverview);
-DECLARE_CYCLE_STAT(TEXT("RT FogVolumes"), STAT_VdbFogVolumes_RT, STATGROUP_VdbOverview);
+DECLARE_CYCLE_STAT(TEXT("RT Opaque"), STAT_VdbOpaque_RT, STATGROUP_VdbOverview);
+DECLARE_CYCLE_STAT(TEXT("RT Translucent"), STAT_VdbTranslucent_RT, STATGROUP_VdbOverview);
 DECLARE_CYCLE_STAT(TEXT("RT Principled"), STAT_VdbPrincipled_RT, STATGROUP_VdbOverview);
 DECLARE_CYCLE_STAT(TEXT("RT GetDynMeshElements"), STAT_VdbSceneProxy_GetDynamicMeshElements, STATGROUP_VdbOverview);
 
