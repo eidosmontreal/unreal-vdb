@@ -192,6 +192,7 @@ TRDGUniformBufferRef<FVdbPrincipledShaderParams> CreateVdbUniformBuffer(FRDGBuil
 	UniformParameters->StepSize = Params.StepSize;
 	UniformParameters->VoxelSize = Params.VoxelSize;
 	UniformParameters->MaxRayDepth = Params.MaxRayDepth;
+	UniformParameters->ColoredTransmittance = Params.ColoredTransmittance;
 	// Material Params
 	auto LinearColorToVector = [](const FLinearColor& Col) { return FVector3f(Col.R, Col.G, Col.B); };
 	UniformParameters->Color = LinearColorToVector(Params.Color);

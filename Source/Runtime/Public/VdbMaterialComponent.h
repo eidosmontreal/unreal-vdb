@@ -58,6 +58,10 @@ class UVdbMaterialComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (ClampMin = "0", UIMin = "0", ClampMax = "1", UIMax = "1"))
 	float Jittering = 0.5;
 
+	// Wether to allow colored transmittance during light scattering. More physically based but less artistic-friendly when enabled.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes")
+	bool ColoredTransmittance = false;
+
 	// Backward or forward scattering direction (aka directional bias).
 	// The default value of zero gives isotropic scattering so that light is scattered evenly in all directions. 
 	// Positive values bias the scattering effect forwards, in the direction of the light, while negative values bias the scattering backward, toward the light. 

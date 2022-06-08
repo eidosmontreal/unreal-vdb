@@ -175,15 +175,23 @@ float4 RaymarchVolume(
 		float3 SigmaS = SigmaT * Medium.albedo; // Scattering
 		float3 SigmaA = SigmaT - SigmaS; // Absorption
 
-		// Using average instead of float3 value, to avoid weird color shifts
-		float StepTransmittance = Average(Transmittance) * StepWorldMeters * Density;
+		float3 StepTransmittance = Transmittance * StepWorldMeters * Density;
+		if (VdbPrincipledParams.ColoredTransmittance == 0)
+		{
+			// Using average instead of float3 value, to avoid weird color shifts and be more user-friendly
+			StepTransmittance = Average(Transmittance) * StepWorldMeters * Density;
+		}
 
 		// Single scattering from Directional light or Environment
 		if (VdbPrincipledParams.UseDirectionalLight)
 		{
 			float3 ShadowDirection = LightDir;
 			float3 ShadowTransmittance = GetShadowTransmittance(DensitySampler, bbox_min, bbox_max, iPos, ShadowDirection, Medium, 2.0, SigmaT, RandSequence);
-			Radiance += StepTransmittance * SigmaS * LightCol * Average(ShadowTransmittance) * PhaseHG(CosThetaPhase, Medium.anisotropy);
+			if (VdbPrincipledParams.ColoredTransmittance == 0)
+			{
+				ShadowTransmittance = Average(ShadowTransmittance);
+			}
+			Radiance += StepTransmittance * SigmaS * LightCol * ShadowTransmittance * PhaseHG(CosThetaPhase, Medium.anisotropy);
 		}
 		if (VdbPrincipledParams.UseEnvironmentLight)
 		{
@@ -191,11 +199,15 @@ float4 RaymarchVolume(
 			float2 rnd = RandomSequence_GenerateSample2D(RandSequence);
 			float3 ShadowDirection = SampleHenyeyGreenstein(0.0, rnd.x, rnd.y);
 			float3 ShadowTransmittance = GetShadowTransmittance(DensitySampler, bbox_min, bbox_max, iPos, ShadowDirection, Medium, 4.0, SigmaT, RandSequence);
+			if (VdbPrincipledParams.ColoredTransmittance == 0)
+			{
+				ShadowTransmittance = Average(ShadowTransmittance);
+			}
 			
 			float3 WorldDir = IndexToWorldDirection(ShadowDirection, VdbPrincipledParams.LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
 			float3 IncomingRadiance = GetSkySHDiffuse(WorldDir) * View.SkyLightColor.rgb;
 
-			Radiance += StepTransmittance * SigmaS * IncomingRadiance * Average(ShadowTransmittance);
+			Radiance += StepTransmittance * SigmaS * IncomingRadiance * ShadowTransmittance;
 		}
 
 #if USE_TEMPERATURE

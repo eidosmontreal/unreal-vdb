@@ -25,6 +25,7 @@ struct FVdbPrincipledParams
 	FVdbRenderBuffer* VdbDensity;
 	FVdbRenderBuffer* VdbTemperature;
 	FVector3f IndexMin;
+	uint32 ColoredTransmittance;
 	FVector3f IndexSize;
 	FMatrix44f IndexToLocal;
 	uint32 MaxRayDepth;

@@ -158,6 +158,7 @@ BEGIN_UNIFORM_BUFFER_STRUCT(FVdbPrincipledShaderParams, )
 	SHADER_PARAMETER(uint32, MaxRayDepth)
 	SHADER_PARAMETER(float, StepSize)
 	SHADER_PARAMETER(float, VoxelSize)
+	SHADER_PARAMETER(uint32, ColoredTransmittance)
 	// Material parameters
 	SHADER_PARAMETER(FVector3f, Color)
 	SHADER_PARAMETER(float, DensityMult)

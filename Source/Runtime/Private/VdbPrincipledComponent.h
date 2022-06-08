@@ -48,15 +48,19 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 	//----------------------------------------------------------------------------
 
 	// Max number of ray bounces
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, meta = (ClampMin = "1", UIMin = "1", ClampMax = "50", UIMax = "20"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (ClampMin = "1", UIMin = "1", ClampMax = "50", UIMax = "20"))
 	int32 MaxRayDepth = 300;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, meta = (ClampMin = "1", UIMin = "1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (ClampMin = "1", UIMin = "1"))
 	int32 SamplesPerPixel = 1;
 
 	// Volume local step size
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, meta = (ClampMin = "0.5", UIMin = "0.5"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (ClampMin = "0.5", UIMin = "0.5"))
 	float StepSize = 8.0f;
+
+	// Wether to allow colored transmittance during light scattering. More physically based but less artistic-friendly when enabled.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes")
+	bool ColoredTransmittance = false;
 
 	//-------------------------------------------------------------------------------
 	//    Principled Volume Shader Options, inspired by these two sources:
@@ -65,15 +69,15 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 	//----------------------------------------------------------------------------
 
 	// Volume scattering color. This acts as a multiplier on the scatter color, to texture the color of the volume.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Volume")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader")
 	FLinearColor Color = FLinearColor(1.0, 1.0, 1.0, 1.0);
 
 	// Density multiplier of the volume, modulating VdbDensity values 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Volume", meta = (ClampMin = "0.00001", UIMin = "0.00001"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (ClampMin = "0.00001", UIMin = "0.00001"))
 	float DensityMultiplier = 10.0;
 
 	// Describes the probability of scattering (versus absorption) at a scattering event. Between 0 and 1.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Volume", meta = (UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "1.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "1.0"))
 	float Albedo = 0.8;
 
 	// Backward or forward scattering direction (aka directional bias).
@@ -81,27 +85,27 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 	// Positive values bias the scattering effect forwards, in the direction of the light, while negative values bias the scattering backward, toward the light. 
 	// This shader uses the Henyey-Greenstein phase function.
 	// Note that values very close to 1.0 (above 0.95) or -1.0 (below - 0.95) will produce scattering that is so directional that it will not be very visible from most angles, so such values are not recommended.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Volume", meta = (ClampMin = "-1.0", UIMin = "-1.0", ClampMax = "1.0", UIMax = "1.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (ClampMin = "-1.0", UIMin = "-1.0", ClampMax = "1.0", UIMax = "1.0"))
 	float Anisotropy = 0.0;
 
 	// Amount of light to emit.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Volume", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float EmissionStrength = 0.0;
 
 	// Emission color tint.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Volume")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader")
 	FLinearColor EmissionColor = FLinearColor(1.0, 1.0, 1.0, 1.0);
 
 	// Blackbody emission for fire. Set to 1 for physically accurate intensity.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Volume", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float BlackbodyIntensity = 1.0;
 
 	// Color tint for blackbody emission.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Volume")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader")
 	FLinearColor BlackbodyTint = FLinearColor(1.0, 1.0, 1.0, 1.0);
 
 	// Temperature in kelvin for blackbody emission, higher values emit more.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Volume", meta = (ClampMin = "0.0", UIMin = "0.0", ClampMax = "6500", UIMax = "6500"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (ClampMin = "0.0", UIMin = "0.0", ClampMax = "6500", UIMax = "6500"))
 	float Temperature = 1500.0;
 
 
@@ -109,13 +113,13 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 	// Debug options (by order of priority)
 	//----------------------------------------------------------------------------
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|DebugDisplay")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Debug Display")
 	bool UseDirectionalLight = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|DebugDisplay")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Debug Display")
 	bool UseEnvironmentLight = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|DebugDisplay")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Debug Display")
 	bool DisplayBounds = false;
 
 	//----------------------------------------------------------------------------

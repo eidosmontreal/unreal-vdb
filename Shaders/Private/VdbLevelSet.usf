@@ -33,6 +33,7 @@ StructuredBuffer<uint> PrimaryVdbBuffer;
 #define MAX_NUM_STEPS uint(CustomIntData0.x)
 #define SAMPLES_PER_PIXEL uint(CustomIntData0.y)
 #define SAMPLES_PER_PIXEL_FLOAT float(CustomIntData0.y)
+#define COLORED_TRANSMITTANCE bool(CustomIntData0.z)
 #define LOCAL_STEP_SIZE CustomFloatData0.x
 #define SHADOW_STEP_SIZE_MULT CustomFloatData0.y
 #define VOXEL_SIZE CustomFloatData0.z
@@ -168,8 +169,12 @@ float4 RaymarchLevelSet(
 		// ------------------------------------------------------------------------
 		// Update total Radiance with all incoming ligth sources
 
-		// Using average instead of float3 value, to avoid weird color shifts
-		float StepTransmittance = Average(Transmittance) * StepWorldMeters * Density;
+		float3 StepTransmittance = Transmittance * StepWorldMeters * Density;
+		if (!COLORED_TRANSMITTANCE)
+		{
+			// Using average instead of float3 value, to avoid weird color shifts and be more user-friendly
+			StepTransmittance = Average(Transmittance) * StepWorldMeters * Density;
+		}
 
 		Radiance += StepTransmittance * SigmaA * EmissiveColor; // Emissive
 #if !MATERIAL_SHADINGMODEL_UNLIT
@@ -187,7 +192,11 @@ float4 RaymarchLevelSet(
 				bbox_min, bbox_max, ShadowRay,
 				VdbSampler, SigmaT,
 				LocalToWorld, RandSequence, MaterialParameters);
-			Radiance += StepTransmittance * SigmaS * Average(LightTransmittance) * LightCol * PhaseHG(CosThetaPhase, Anisotropy);
+			if (!COLORED_TRANSMITTANCE)
+			{
+				LightTransmittance = Average(LightTransmittance);
+			}
+			Radiance += StepTransmittance * SigmaS * LightTransmittance * LightCol * PhaseHG(CosThetaPhase, Anisotropy);
 		}
 #endif
 

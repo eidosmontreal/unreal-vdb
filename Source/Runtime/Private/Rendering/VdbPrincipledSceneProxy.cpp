@@ -40,6 +40,7 @@ FVdbPrincipledSceneProxy::FVdbPrincipledSceneProxy(const UVdbAssetComponent* Ass
 	Params.SamplesPerPixel = InComponent->SamplesPerPixel;
 	Params.StepSize = InComponent->StepSize;
 	Params.VoxelSize = AssetComponent->PrimaryVolume->GetVoxelSize();
+	Params.ColoredTransmittance = uint32(InComponent->ColoredTransmittance);
 	Params.Color = InComponent->Color;
 	Params.DensityMult = InComponent->DensityMultiplier;
 	Params.Albedo = InComponent->Albedo;
