@@ -82,10 +82,9 @@ ou Youtube.
 
 ### Gallery scene
 
-The plugin now comes with an example level `LVL_VDB_Gallery`, showing a variety of VDB uses.
+The plugin now comes with example levels (e.g `LVL_VDB_Gallery`), showing a variety of VDB uses.
 
-You can download the zipped version in [Releases](https://github.com/eidosmontreal/unreal-vdb/releases). You will need 
-to extract files in the plugin `Content/` folder. 
+You can download the zipped versions with data in [Releases](https://github.com/eidosmontreal/unreal-vdb/releases). 
 
 ---
 ## First steps

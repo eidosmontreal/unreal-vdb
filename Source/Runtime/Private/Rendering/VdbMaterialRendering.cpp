@@ -39,6 +39,11 @@ static TAutoConsoleVariable<int32> CVarVolumetricVdbDenoiser(
 	TEXT("Denoiser method applied on Vdb FogVolumes. Used only if >= 0. Otherwise, fallback to engine value."),
 	ECVF_RenderThreadSafe | ECVF_Scalability);
 
+static TAutoConsoleVariable<float> CVarVolumetricVdbThreshold(
+	TEXT("r.Vdb.Threshold"), 0.01,
+	TEXT("Transmittance threshold to stop raymarching. Lower values are better but more expensive. Must be close to 0."),
+	ECVF_RenderThreadSafe | ECVF_Scalability);
+
 //-----------------------------------------------------------------------------
 //--- FVdbMeshProcessor
 //-----------------------------------------------------------------------------
@@ -385,6 +390,7 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 
 	FVdbShaderParams* UniformParameters = GraphBuilder.AllocParameters<FVdbShaderParams>();
 	UniformParameters->SceneDepthTexture = Parameters.DepthTexture;
+	UniformParameters->Threshold = FMath::Max(0.0, CVarVolumetricVdbThreshold.GetValueOnAnyThread());
 	TRDGUniformBufferRef<FVdbShaderParams> VdbUniformBuffer = GraphBuilder.CreateUniformBuffer(UniformParameters);
 
 	if (!OpaqueProxies.IsEmpty())

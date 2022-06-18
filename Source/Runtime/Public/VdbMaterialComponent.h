@@ -46,7 +46,7 @@ class UVdbMaterialComponent : public UPrimitiveComponent
 
 	// Raymarching step distance, in local space. The smaller the more accurate, but also the more expensive. Only use small values 
 	// to capture small missing features. It is recommended to keep this multiplier as high as possible for better performance.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (UIMin = "0.1", ClampMin = "0.1"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (UIMin = "0.001", ClampMin = "0.001"))
 	float LocalStepSize = 4.f;
 
 	// Shadow raymarching step distance multiplier. It represents a multiple of LocalStepSize.
@@ -60,7 +60,7 @@ class UVdbMaterialComponent : public UPrimitiveComponent
 
 	// Wether to allow colored transmittance during light scattering. More physically based but less artistic-friendly when enabled.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes")
-	bool ColoredTransmittance = false;
+	bool ColoredTransmittance = true;
 
 	// Backward or forward scattering direction (aka directional bias).
 	// The default value of zero gives isotropic scattering so that light is scattered evenly in all directions. 

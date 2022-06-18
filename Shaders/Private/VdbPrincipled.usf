@@ -172,14 +172,20 @@ float4 RaymarchVolume(
 		if (Density == 0.0) continue;
 
 		float3 SigmaT = VdbPrincipledParams.Color.rgb; // Extinction
-		float3 SigmaS = SigmaT * Medium.albedo; // Scattering
-		float3 SigmaA = SigmaT - SigmaS; // Absorption
+		float3 Extinction = SigmaT * Density;
+		float3 Scattering = Extinction * Medium.albedo;
+		float3 Absorption = Extinction - Scattering;
 
-		float3 StepTransmittance = Transmittance * StepWorldMeters * Density;
+#ifdef ANALYTIC_INTEGRATION
+		float3 TransmittanceIntegral = (1.0 - exp(-StepWorldMeters * Extinction)) / Extinction;
+		float3 StepTransmittance = Transmittance * TransmittanceIntegral;
+#else
+		float3 StepTransmittance = Transmittance * StepWorldMeters;
+#endif
 		if (VdbPrincipledParams.ColoredTransmittance == 0)
 		{
 			// Using average instead of float3 value, to avoid weird color shifts and be more user-friendly
-			StepTransmittance = Average(Transmittance) * StepWorldMeters * Density;
+			StepTransmittance = Average(StepTransmittance);
 		}
 
 		// Single scattering from Directional light or Environment
@@ -191,7 +197,7 @@ float4 RaymarchVolume(
 			{
 				ShadowTransmittance = Average(ShadowTransmittance);
 			}
-			Radiance += StepTransmittance * SigmaS * LightCol * ShadowTransmittance * PhaseHG(CosThetaPhase, Medium.anisotropy);
+			Radiance += StepTransmittance * Scattering * LightCol * ShadowTransmittance * PhaseHG(CosThetaPhase, Medium.anisotropy);
 		}
 		if (VdbPrincipledParams.UseEnvironmentLight)
 		{
@@ -207,7 +213,7 @@ float4 RaymarchVolume(
 			float3 WorldDir = IndexToWorldDirection(ShadowDirection, VdbPrincipledParams.LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
 			float3 IncomingRadiance = GetSkySHDiffuse(WorldDir) * View.SkyLightColor.rgb;
 
-			Radiance += StepTransmittance * SigmaS * IncomingRadiance * ShadowTransmittance;
+			Radiance += StepTransmittance * Scattering * IncomingRadiance * ShadowTransmittance;
 		}
 
 #if USE_TEMPERATURE
@@ -215,15 +221,15 @@ float4 RaymarchVolume(
 		float Temperature = SAMPLING(s, Ray, TemperatureSampler.GridBuffer, TemperatureSampler.GridType, TemperatureSampler.Accessor) * VdbPrincipledParams.Temperature;
 		float3 TemperatureColor = ColorTemperatureToRGB(Temperature) * VdbPrincipledParams.BlackbodyTint * VdbPrincipledParams.BlackbodyIntensity;
 
-		Radiance += StepTransmittance * SigmaA * TemperatureColor;
+		Radiance += StepTransmittance * Absorption * TemperatureColor;
 #endif
 
 		// Regular emissive
-		Radiance += StepTransmittance * SigmaA * VdbPrincipledParams.EmissionStrength * VdbPrincipledParams.EmissionColor;
+		Radiance += StepTransmittance * Absorption * VdbPrincipledParams.EmissionStrength * VdbPrincipledParams.EmissionColor;
 
-		Transmittance *= exp(-StepWorldMeters * Density * SigmaT);
+		Transmittance *= exp(-StepWorldMeters * Extinction);
 
-		if (all(Transmittance < 0.01f))
+		if (all(Transmittance < 0.001f))
 		{
 			Transmittance = 0.0f;
 			break;

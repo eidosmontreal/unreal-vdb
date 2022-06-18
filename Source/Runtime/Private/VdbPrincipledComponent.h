@@ -48,19 +48,19 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 	//----------------------------------------------------------------------------
 
 	// Max number of ray bounces
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (ClampMin = "1", UIMin = "1", ClampMax = "50", UIMax = "20"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (ClampMin = "1", UIMin = "1"))
 	int32 MaxRayDepth = 300;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (ClampMin = "1", UIMin = "1"))
 	int32 SamplesPerPixel = 1;
 
 	// Volume local step size
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (ClampMin = "0.5", UIMin = "0.5"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (ClampMin = "0.001", UIMin = "0.001"))
 	float StepSize = 8.0f;
 
 	// Wether to allow colored transmittance during light scattering. More physically based but less artistic-friendly when enabled.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes")
-	bool ColoredTransmittance = false;
+	bool ColoredTransmittance = true;
 
 	//-------------------------------------------------------------------------------
 	//    Principled Volume Shader Options, inspired by these two sources:

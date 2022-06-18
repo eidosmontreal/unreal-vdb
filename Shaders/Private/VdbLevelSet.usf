@@ -151,34 +151,45 @@ float4 RaymarchLevelSet(
 		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
 		// Sample Material
 		half3 EmissiveColor = SampleEmissive(PixelMaterialInputs);
-		half3 Extinction = SampleExtinctionCoefficients(PixelMaterialInputs);
-		half3 Scattering = SampleScattering(PixelMaterialInputs);
+		half3 SampleExtinction = SampleExtinctionCoefficients(PixelMaterialInputs);
+		half3 SigmaT = SampleScattering(PixelMaterialInputs);
 		const float Albedo = SampleAlbedo(PixelMaterialInputs);
 		const float Anisotropy = ANISOTROPY;
 
 		float Density = ReadValue(iPos, VdbSampler.GridBuffer, VdbSampler.GridType, VdbSampler.Accessor) < 0.0 ? 1.0 : 0.0;
-		Density = UpdateDensity(Density, Extinction);
+		Density = UpdateDensity(Density, SampleExtinction);
 
 		if (Density == 0.0) continue;
 
 		// Compute scattering and absorption coefficients
-		float3 SigmaT = Scattering; // Extinction
-		float3 SigmaS = SigmaT * Albedo; // Scattering
-		float3 SigmaA = SigmaT - SigmaS; // Absorption
+		float3 Extinction = SigmaT * Density;
+		float3 Scattering = Extinction * Albedo; // aka SigmaS * Density
+#if MATERIAL_SHADINGMODEL_UNLIT
+		// ignore scattering with unlit shader
+		float3 Absorption = Extinction;
+#else
+		float3 Absorption = Extinction - Scattering; // aka SigmaA * Density
+#endif
 
 		// ------------------------------------------------------------------------
 		// Update total Radiance with all incoming ligth sources
 
-		float3 StepTransmittance = Transmittance * StepWorldMeters * Density;
+#ifdef ANALYTIC_INTEGRATION
+		float3 TransmittanceIntegral = (1.0 - exp(-StepWorldMeters * Extinction)) / Extinction;
+		float3 StepTransmittance = Transmittance * TransmittanceIntegral;
+#else
+		float3 StepTransmittance = Transmittance * StepWorldMeters;
+#endif
 		if (!COLORED_TRANSMITTANCE)
 		{
 			// Using average instead of float3 value, to avoid weird color shifts and be more user-friendly
-			StepTransmittance = Average(Transmittance) * StepWorldMeters * Density;
+			StepTransmittance = Average(StepTransmittance);
 		}
 
-		Radiance += StepTransmittance * SigmaA * EmissiveColor; // Emissive
+		Radiance += StepTransmittance * Absorption * EmissiveColor; // Emissive
+
 #if !MATERIAL_SHADINGMODEL_UNLIT
-		Radiance += StepTransmittance * SigmaS * EnvLight; // Ambient
+		Radiance += StepTransmittance * Scattering * EnvLight; // Ambient
 
 		// Only support single directional lighting.
 		{
@@ -196,19 +207,19 @@ float4 RaymarchLevelSet(
 			{
 				LightTransmittance = Average(LightTransmittance);
 			}
-			Radiance += StepTransmittance * SigmaS * LightTransmittance * LightCol * PhaseHG(CosThetaPhase, Anisotropy);
+			Radiance += StepTransmittance * Scattering * LightTransmittance * LightCol * PhaseHG(CosThetaPhase, Anisotropy);
 		}
 #endif
 
 		// Update Transmittance
-		Transmittance *= exp(-StepWorldMeters * Density * SigmaT);
+		Transmittance *= exp(-StepWorldMeters * Extinction);
 
-		const float Threshold = 0.01f;
-		if (all(Transmittance < Threshold))
+		if (all(Transmittance < VdbParams.Threshold))
 		{
+			// Artificially boosting some of the missing contribution. I'm making this up.
+			Radiance += VdbParams.Threshold * Absorption * EmissiveColor;
 #if !MATERIAL_SHADINGMODEL_UNLIT
-			// Artificially boosting missing ambient contribution. I'm making this up.
-			Radiance += Threshold * SigmaS * EnvLight;
+			Radiance += VdbParams.Threshold * Scattering * EnvLight;
 #endif
 			Transmittance = 0.0;
 			break;

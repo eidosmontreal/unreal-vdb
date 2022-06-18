@@ -15,6 +15,10 @@
 #ifndef D_VDB_VOLUMETRIC_COMMON
 #define D_VDB_VOLUMETRIC_COMMON
 
+// http://graphics.cs.cmu.edu/courses/15-468/lectures/lecture12.pdf
+// https://media.contentapi.ea.com/content/dam/eacom/frostbite/files/s2016-pbs-frostbite-sky-clouds-new.pdf
+#define ANALYTIC_INTEGRATION 
+
 #define PNANOVDB_HLSL
 #if SHADER_VERSION_MAJOR == 32 && SHADER_VERSION_MINOR == 3
 	#include "/Plugin/VdbVolume/nanovdb/32.3/PNanoVDB.ush"
