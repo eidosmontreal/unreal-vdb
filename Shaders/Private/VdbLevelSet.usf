@@ -25,6 +25,7 @@
 int4 CustomIntData0;
 float4 CustomFloatData0;
 float4 CustomFloatData1;
+float4 CustomFloatData2;
 StructuredBuffer<uint> PrimaryVdbBuffer;
 
 // I can't make a custom MaterialExpression from a plugin. 
@@ -39,6 +40,9 @@ StructuredBuffer<uint> PrimaryVdbBuffer;
 #define VOXEL_SIZE CustomFloatData0.z
 #define JITTER_MULT CustomFloatData0.w
 #define ANISOTROPY CustomFloatData1.x
+#define ALBEDO CustomFloatData1.y
+#define DENSITY_MULT CustomFloatData2.x
+#define VOLUME_PADDING CustomFloatData2.y
 
 #define IS_TRANSLUCENT USE_SECONDARY_VDB
 
@@ -53,8 +57,7 @@ float3 GetLightTransmittance(
 	in out RandomSequence RandSequence,
 	FMaterialPixelParameters MaterialParameters)
 {
-	pnanovdb_bool_t hit = pnanovdb_hdda_ray_clip(bbox_min, bbox_max, Ray.Origin, Ray.TMin, Ray.Direction, Ray.TMax);
-	if (!hit)
+	if (!CheckBounds(Ray, bbox_min - VOLUME_PADDING, bbox_max + VOLUME_PADDING))
 		return 1.0f;
 
 	float RaymarchDistance = Ray.TMax - Ray.TMin;
@@ -76,11 +79,12 @@ float3 GetLightTransmittance(
 		UpdateMaterialParam(MaterialParameters, WorldPos, ResolvedView);
 		// Sample material
 		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
-		// Only sample Extinction
-		half3 Extinction = SampleExtinctionCoefficients(PixelMaterialInputs);
+		// Only sample Density related attributes
+		half3 Displacement = SampleDisplacement(PixelMaterialInputs); 
+		float2 DensityModifications = SampleDensityModifications(PixelMaterialInputs);
 
-		float Density = ReadValue(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor) < 0.0 ? 1.0 : 0.0;
-		AccumDensity += UpdateDensity(Density, Extinction);
+		float Density = ReadValue(iPos - Displacement, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor) < 0.0 ? 1.0 : 0.0;
+		AccumDensity += UpdateDensity(Density, DENSITY_MULT, DensityModifications);
 	}
 	return exp(-AccumDensity * StepWorldMeters * SigmaT);
 }
@@ -98,7 +102,7 @@ float4 RaymarchLevelSet(
 	// ------------------------------------------------------------------------
 	// Test against volume, and update Ray start/end to fit volume
 
-	if (!CheckBounds(Ray, bbox_min, bbox_max))
+	if (!CheckBounds(Ray, bbox_min - VOLUME_PADDING, bbox_max + VOLUME_PADDING))
 		return float4(0.0, 0.0, 0.0, 0.0);
 
 	// ------------------------------------------------------------------------
@@ -118,17 +122,10 @@ float4 RaymarchLevelSet(
 	FPixelMaterialInputs PixelMaterialInputs = (FPixelMaterialInputs)0;
 
 	// ------------------------------------------------------------------------
-	// Test first intersection
+	// DON'T do a first intersection test. 
+	// It's much more expensive than simply brute force raymarching...
 
-	ZeroCrossingHit HitResults;
-	if (!GetNextIntersection(VdbSampler, Ray, HitResults))
-	{
-		return float4(0.0, 0.0, 0.0, 0.0);
-	}
-
-	bool bInside = HitResults.v0 > 0.0;
-	// If we're inside the volume, start raymarching at camera position, otherwise skip empty space
-	float StartDistance = bInside ? Ray.TMin : HitResults.t_hit;
+	float StartDistance = Ray.TMin;
 
 	// ------------------------------------------------------------------------
 	// Raymarch with fixed steps
@@ -151,19 +148,18 @@ float4 RaymarchLevelSet(
 		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
 		// Sample Material
 		half3 EmissiveColor = SampleEmissive(PixelMaterialInputs);
-		half3 SampleExtinction = SampleExtinctionCoefficients(PixelMaterialInputs);
+		half3 Displacement = SampleDisplacement(PixelMaterialInputs);
 		half3 SigmaT = SampleScattering(PixelMaterialInputs);
-		const float Albedo = SampleAlbedo(PixelMaterialInputs);
-		const float Anisotropy = ANISOTROPY;
+		float2 DensityModifications = SampleDensityModifications(PixelMaterialInputs);
 
-		float Density = ReadValue(iPos, VdbSampler.GridBuffer, VdbSampler.GridType, VdbSampler.Accessor) < 0.0 ? 1.0 : 0.0;
-		Density = UpdateDensity(Density, SampleExtinction);
+		float Density = ReadValue(iPos - Displacement, VdbSampler.GridBuffer, VdbSampler.GridType, VdbSampler.Accessor) < 0.0 ? 1.0 : 0.0;
+		Density = UpdateDensity(Density, DENSITY_MULT, DensityModifications);
 
 		if (Density == 0.0) continue;
 
 		// Compute scattering and absorption coefficients
 		float3 Extinction = SigmaT * Density;
-		float3 Scattering = Extinction * Albedo; // aka SigmaS * Density
+		float3 Scattering = Extinction * ALBEDO; // aka SigmaS * Density
 #if MATERIAL_SHADINGMODEL_UNLIT
 		// ignore scattering with unlit shader
 		float3 Absorption = Extinction;
@@ -207,7 +203,7 @@ float4 RaymarchLevelSet(
 			{
 				LightTransmittance = Average(LightTransmittance);
 			}
-			Radiance += StepTransmittance * Scattering * LightTransmittance * LightCol * PhaseHG(CosThetaPhase, Anisotropy);
+			Radiance += StepTransmittance * Scattering * LightTransmittance * LightCol * PhaseHG(CosThetaPhase, ANISOTROPY);
 		}
 #endif
 

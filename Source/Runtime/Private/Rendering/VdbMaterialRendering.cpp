@@ -356,6 +356,7 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 							ShaderElementData.CustomIntData0 = Proxy->GetCustomIntData0();
 							ShaderElementData.CustomFloatData0 = Proxy->GetCustomFloatData0();
 							ShaderElementData.CustomFloatData1 = Proxy->GetCustomFloatData1();
+							ShaderElementData.CustomFloatData2 = Proxy->GetCustomFloatData2();
 							ShaderElementData.PrimaryBufferSRV = Proxy->GetPrimaryRenderResource()->GetBufferSRV();
 							ShaderElementData.SecondaryBufferSRV = Proxy->GetSecondaryRenderResource() ? Proxy->GetSecondaryRenderResource()->GetBufferSRV() : nullptr;
 							if (!ShaderElementData.PrimaryBufferSRV)
@@ -370,8 +371,8 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 								MoveTemp(ShaderElementData));
 
 							FVdbVertexFactoryUserDataWrapper UserData;
-							UserData.Data.IndexMin = Proxy->GetIndexMin();
-							UserData.Data.IndexSize = Proxy->GetIndexSize();
+							UserData.Data.IndexMin = Proxy->GetIndexMin() - ShaderElementData.CustomFloatData2.Y;
+							UserData.Data.IndexSize = Proxy->GetIndexSize() + 2.0*ShaderElementData.CustomFloatData2.Y;
 							UserData.Data.IndexToLocal = Proxy->GetIndexToLocal();
 
 							FMeshBatch VolumeMesh;

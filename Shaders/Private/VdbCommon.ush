@@ -153,9 +153,8 @@ float ReadValue(float Step, VdbRay ray, pnanovdb_buf_t buf, pnanovdb_uint32_t gr
 	return ReadValue(pos, buf, grid_type, acc);
 }
 
-float TrilinearSampling(float Step, VdbRay ray, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
+float TrilinearSampling(pnanovdb_vec3_t pos, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
 {
-	pnanovdb_vec3_t pos = pnanovdb_hdda_ray_start(ray.Origin, Step, ray.Direction);
 	pnanovdb_coord_t ijk = pnanovdb_hdda_pos_to_ijk(pos);
 	pnanovdb_vec3_t uvw = pos - ijk;
 
@@ -179,6 +178,12 @@ float TrilinearSampling(float Step, VdbRay ray, pnanovdb_buf_t buf, pnanovdb_uin
 			lerp(Values[1][1][0], Values[1][1][1], uvw[2]), 
 		uvw[1]), 
 	uvw[0]);
+}
+
+float TrilinearSampling(float Step, VdbRay ray, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
+{
+	pnanovdb_vec3_t pos = pnanovdb_hdda_ray_start(ray.Origin, Step, ray.Direction);
+	return TrilinearSampling(pos, buf, grid_type, acc);
 }
 
 bool CheckBounds(inout VdbRay Ray, pnanovdb_vec3_t bbox_min, pnanovdb_vec3_t bbox_max)

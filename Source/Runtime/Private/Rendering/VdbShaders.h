@@ -32,9 +32,10 @@ namespace VdbShaders
 
 struct FVdbElementData : public FMeshMaterialShaderElementData
 {
-	FIntVector4 CustomIntData0; // x: MaxRayDepth, y: SamplesPerPixel, z: unused, w: unused
-	FVector4f CustomFloatData0; // x: Local step size, y: Shadow step size mutliplier, z: voxel size, w: unused
-	FVector4f CustomFloatData1; // x: anisotropy, y: unused, z: balckbody intensity, w: blackbody temperature
+	FIntVector4 CustomIntData0; // x: MaxRayDepth, y: SamplesPerPixel, z: colored transmittance, w: unused
+	FVector4f CustomFloatData0; // x: Local step size, y: Shadow step size mutliplier, z: voxel size, w: jittering
+	FVector4f CustomFloatData1; // x: anisotropy, y: albedo, z: blackbody intensity, w: blackbody temperature
+	FVector4f CustomFloatData2; // x: density mul, y: padding, z: unused, w: unused
 	FShaderResourceViewRHIRef PrimaryBufferSRV;
 	FShaderResourceViewRHIRef SecondaryBufferSRV;
 };
@@ -87,6 +88,7 @@ class FVdbShaderPS : public FMeshMaterialShader
 	LAYOUT_FIELD(FShaderParameter, CustomIntData0);
 	LAYOUT_FIELD(FShaderParameter, CustomFloatData0);
 	LAYOUT_FIELD(FShaderParameter, CustomFloatData1);
+	LAYOUT_FIELD(FShaderParameter, CustomFloatData2);
 
 	FVdbShaderPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
 		: FMeshMaterialShader(Initializer)
@@ -96,6 +98,7 @@ class FVdbShaderPS : public FMeshMaterialShader
 		CustomIntData0.Bind(Initializer.ParameterMap, TEXT("CustomIntData0"));
 		CustomFloatData0.Bind(Initializer.ParameterMap, TEXT("CustomFloatData0"));
 		CustomFloatData1.Bind(Initializer.ParameterMap, TEXT("CustomFloatData1"));
+		CustomFloatData2.Bind(Initializer.ParameterMap, TEXT("CustomFloatData2"));
 
 		PassUniformBuffer.Bind(Initializer.ParameterMap, FVdbShaderParams::StaticStructMetadata.GetShaderVariableName());
 	}
@@ -136,6 +139,7 @@ public:
 		ShaderBindings.Add(CustomIntData0, ShaderElementData.CustomIntData0);
 		ShaderBindings.Add(CustomFloatData0, ShaderElementData.CustomFloatData0);
 		ShaderBindings.Add(CustomFloatData1, ShaderElementData.CustomFloatData1);
+		ShaderBindings.Add(CustomFloatData2, ShaderElementData.CustomFloatData2);
 	}
 };
 typedef FVdbShaderPS<true, false> FVdbShaderPS_LevelSet;

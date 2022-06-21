@@ -29,11 +29,11 @@ void UpdateMaterialParam(
 	MaterialParameters.CameraVector = normalize(LWCToFloat(LWCSubtract(InputView.WorldCameraOrigin, MaterialParameters.AbsoluteWorldPosition)));
 }
 
-half3 SampleExtinctionCoefficients(in FPixelMaterialInputs PixelMaterialInputs)
+half3 SampleDisplacement(in FPixelMaterialInputs PixelMaterialInputs)
 {
 	// w value is not set. don't try to use it
-	half3 Extinction = GetMaterialSubsurfaceDataRaw(PixelMaterialInputs).xyz;
-	return Extinction;
+	half3 Displacement = GetMaterialSubsurfaceDataRaw(PixelMaterialInputs).xyz;
+	return Displacement;
 }
 
 half3 SampleEmissive(in FPixelMaterialInputs PixelMaterialInputs)
@@ -52,20 +52,29 @@ half3 SampleScattering(in FPixelMaterialInputs PixelMaterialInputs)
 	return Scattering;
 }
 
-// Volume albdeo, i.e the probability of scattering versus absorbing
-half SampleAlbedo(in FPixelMaterialInputs PixelMaterialInputs)
+// Copy of the Unreal material node.
+// I'm missing slots in the material, that's why I have to pack and unpack data
+float2 UnpackTwoNormalizedFloat(float PackedFloat)
 {
-#if MATERIAL_SHADINGMODEL_UNLIT
-	return 0.0;
-#else
-	return GetMaterialAmbientOcclusion(PixelMaterialInputs);
-#endif
+	int Precision = 4096;
+
+	float2 Output = 0;
+	Output.y = fmod(PackedFloat, Precision);
+	Output.x = floor(PackedFloat / Precision);
+	Output /= (Precision - 1);
+	return Output;
 }
 
-float UpdateDensity(float Density, half3 Extinction)
+// Custom density modifications to the VdbDensity volume
+float2 SampleDensityModifications(in FPixelMaterialInputs PixelMaterialInputs)
 {
-	// This will evolve to something more complicated soon.
-	return Density * Extinction.x;
+	float AO = GetMaterialAmbientOcclusionRaw(PixelMaterialInputs);
+	return UnpackTwoNormalizedFloat(AO);
+}
+
+float UpdateDensity(float Density, float DensityMult, float2 DensityModifications)
+{
+	return max(Density * DensityModifications.x, DensityModifications.y) * DensityMult;
 }
 
 #endif // D_VDB_MATERIAL_COMMON

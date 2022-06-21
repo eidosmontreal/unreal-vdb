@@ -45,7 +45,8 @@ FVdbMaterialSceneProxy::FVdbMaterialSceneProxy(const UVdbAssetComponent* AssetCo
 	CustomIntData0 = FIntVector4(InComponent->MaxRayDepth, InComponent->SamplesPerPixel, InComponent->ColoredTransmittance, 0);
 	float VoxelSize = AssetComponent->PrimaryVolume->GetVoxelSize();
 	CustomFloatData0 = FVector4f(InComponent->LocalStepSize, InComponent->ShadowStepSizeMultiplier, VoxelSize, InComponent->Jittering);
-	CustomFloatData1 = FVector4f(InComponent->Anisotropy, 0.f, InComponent->BlackbodyIntensity, InComponent->BlackbodyTemperature);
+	CustomFloatData1 = FVector4f(InComponent->Anisotropy, InComponent->Albedo, InComponent->BlackbodyIntensity, InComponent->BlackbodyTemperature);
+	CustomFloatData2 = FVector4f(InComponent->DensityMultiplier, InComponent->VolumePadding, 0.0, 0.0);
 }
 
 // This setups associated volume mesh for built-in Unreal passes. 

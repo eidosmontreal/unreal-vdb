@@ -32,6 +32,7 @@ public:
 	FIntVector4 GetCustomIntData0() const { return CustomIntData0; }
 	FVector4f GetCustomFloatData0() const { return CustomFloatData0; }
 	FVector4f GetCustomFloatData1() const { return CustomFloatData1; }
+	FVector4f GetCustomFloatData2() const { return CustomFloatData2; }
 	const FMatrix44f& GetIndexToLocal() const { return IndexToLocal; }
 	class UMaterialInterface* GetMaterial() const { return Material; }
 	const class FVdbRenderBuffer* GetPrimaryRenderResource() const { return PrimaryRenderBuffer; }
@@ -67,6 +68,7 @@ private:
 	FIntVector4 CustomIntData0;
 	FVector4f CustomFloatData0;
 	FVector4f CustomFloatData1;
+	FVector4f CustomFloatData2;
 
 	FVdbRenderBuffer* PrimaryRenderBuffer;
 	FVdbRenderBuffer* SecondaryRenderBuffer;

@@ -58,9 +58,21 @@ class UVdbMaterialComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (ClampMin = "0", UIMin = "0", ClampMax = "1", UIMax = "1"))
 	float Jittering = 0.5;
 
+	// Add volume padding to account for additional details or displacement
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes")
+	float VolumePadding = 0.0;
+
 	// Wether to allow colored transmittance during light scattering. More physically based but less artistic-friendly when enabled.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes")
 	bool ColoredTransmittance = true;
+
+	// Density multiplier of the volume, modulating VdbPrincipal values 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Shading", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	float DensityMultiplier = 10.0;
+
+	// Describes the probability of scattering (versus absorption) at a scattering event. Between 0 and 1.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Shading", meta = (ClampMin = "0.0", UIMin = "0.0", ClampMax = "1.0", UIMax = "1.0"))
+	float Albedo = 0.8;
 
 	// Backward or forward scattering direction (aka directional bias).
 	// The default value of zero gives isotropic scattering so that light is scattered evenly in all directions. 

@@ -72,7 +72,7 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader")
 	FLinearColor Color = FLinearColor(1.0, 1.0, 1.0, 1.0);
 
-	// Density multiplier of the volume, modulating VdbDensity values 
+	// Density multiplier of the volume, modulating VdbPrincipal values 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (ClampMin = "0.00001", UIMin = "0.00001"))
 	float DensityMultiplier = 10.0;
 

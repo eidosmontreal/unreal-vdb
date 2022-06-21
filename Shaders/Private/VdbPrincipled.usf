@@ -75,8 +75,7 @@ float3 GetShadowTransmittance(
 	ShadowRay.TMin = 0.0001f; // DeltaFloat;
 	ShadowRay.TMax = POSITIVE_INFINITY;
 
-	pnanovdb_bool_t hit = pnanovdb_hdda_ray_clip(bbox_min, bbox_max, ShadowRay.Origin, ShadowRay.TMin, ShadowRay.Direction, ShadowRay.TMax);
-	if (!hit)
+	if (!CheckBounds(ShadowRay, bbox_min, bbox_max))
 		return 1.0f;
 
 	float RaymarchDistance = ShadowRay.TMax - ShadowRay.TMin; // Index space

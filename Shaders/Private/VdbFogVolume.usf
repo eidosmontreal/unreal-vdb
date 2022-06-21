@@ -24,6 +24,7 @@
 int4 CustomIntData0;
 float4 CustomFloatData0;
 float4 CustomFloatData1;
+float4 CustomFloatData2;
 StructuredBuffer<uint>	PrimaryVdbBuffer;
 StructuredBuffer<uint>	SecondaryVdbBuffer;
 
@@ -39,8 +40,11 @@ StructuredBuffer<uint>	SecondaryVdbBuffer;
 #define VOXEL_SIZE CustomFloatData0.z
 #define JITTER_MULT CustomFloatData0.w
 #define ANISOTROPY CustomFloatData1.x
+#define ALBEDO CustomFloatData1.y
 #define BLACKBODY_INTENSITY CustomFloatData1.z
 #define BLACKBODY_TEMPERATURE CustomFloatData1.w
+#define DENSITY_MULT CustomFloatData2.x
+#define VOLUME_PADDING CustomFloatData2.y
 
 #ifdef USE_TRILINEAR_SAMPLING
 	#define SAMPLING TrilinearSampling
@@ -59,8 +63,7 @@ float3 GetLightTransmittance(
 	in out RandomSequence RandSequence,
 	FMaterialPixelParameters MaterialParameters)
 {
-	pnanovdb_bool_t hit = pnanovdb_hdda_ray_clip(bbox_min, bbox_max, Ray.Origin, Ray.TMin, Ray.Direction, Ray.TMax);
-	if (!hit)
+	if (!CheckBounds(Ray, bbox_min - VOLUME_PADDING, bbox_max + VOLUME_PADDING))
 		return 1.0f;
 
 	float RaymarchDistance = Ray.TMax - Ray.TMin;
@@ -82,11 +85,12 @@ float3 GetLightTransmittance(
 		UpdateMaterialParam(MaterialParameters, WorldPos, ResolvedView);
 		// Sample material
 		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
-		// Only sample Extinction
-		half3 Extinction = SampleExtinctionCoefficients(PixelMaterialInputs);
+		// Only sample Density related attributes
+		half3 Displacement = SampleDisplacement(PixelMaterialInputs);
+		float2 DensityModifications = SampleDensityModifications(PixelMaterialInputs);
 
-		float Density = ReadValue(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
-		AccumDensity += UpdateDensity(Density, Extinction);
+		float Density = ReadValue(iPos - Displacement, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
+		AccumDensity += UpdateDensity(Density, DENSITY_MULT, DensityModifications);
 	}
 	return exp(-AccumDensity * StepWorldMeters * SigmaT);
 }
@@ -113,7 +117,7 @@ float4 RaymarchFogVolume(
 	// ------------------------------------------------------------------------
 	// Test against volume, and update Ray start/end to fit volume
 
-	if (!CheckBounds(Ray, bbox_min, bbox_max))
+	if (!CheckBounds(Ray, bbox_min - VOLUME_PADDING, bbox_max + VOLUME_PADDING))
 		return float4(0.0, 0.0, 0.0, 0.0);
 
 	// ------------------------------------------------------------------------
@@ -153,18 +157,17 @@ float4 RaymarchFogVolume(
 		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
 		// Sample Material
 		half3 EmissiveColor = SampleEmissive(PixelMaterialInputs);
-		half3 SampleExtinction = SampleExtinctionCoefficients(PixelMaterialInputs);
+		half3 Displacement = SampleDisplacement(PixelMaterialInputs);
 		half3 SigmaT = SampleScattering(PixelMaterialInputs);
-		const float Albedo = SampleAlbedo(PixelMaterialInputs);
-		const float Anisotropy = ANISOTROPY;
+		float2 DensityModifications = SampleDensityModifications(PixelMaterialInputs);
 
-		float Density = SAMPLING(s, Ray, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
-		Density = UpdateDensity(Density, SampleExtinction);
+		float Density = SAMPLING(iPos - Displacement, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
+		Density = UpdateDensity(Density, DENSITY_MULT, DensityModifications);
 		if (Density == 0.0) continue; 
 
 		// Compute scattering and absorption coefficients
 		float3 Extinction = SigmaT * Density;
-		float3 Scattering = Extinction * Albedo; // aka SigmaS * Density
+		float3 Scattering = Extinction * ALBEDO; // aka SigmaS * Density
 #if MATERIAL_SHADINGMODEL_UNLIT
 		// ignore scattering with unlit shader
 		float3 Absorption = Extinction;
@@ -208,7 +211,7 @@ float4 RaymarchFogVolume(
 			{
 				LightTransmittance = Average(LightTransmittance);
 			}
-			Radiance += StepTransmittance * Scattering * LightTransmittance * LightCol * PhaseHG(CosThetaPhase, Anisotropy);
+			Radiance += StepTransmittance * Scattering * LightTransmittance * LightCol * PhaseHG(CosThetaPhase, ANISOTROPY);
 		}
 #endif
 
