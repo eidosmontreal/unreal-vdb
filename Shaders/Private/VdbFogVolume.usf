@@ -45,6 +45,7 @@ StructuredBuffer<uint>	SecondaryVdbBuffer;
 #define BLACKBODY_TEMPERATURE CustomFloatData1.w
 #define DENSITY_MULT CustomFloatData2.x
 #define VOLUME_PADDING CustomFloatData2.y
+#define AMBIENT CustomFloatData2.z
 
 #ifdef USE_TRILINEAR_SAMPLING
 	#define SAMPLING TrilinearSampling
@@ -193,7 +194,7 @@ float4 RaymarchFogVolume(
 		Radiance += StepTransmittance * Absorption * EmissiveColor; // Emissive
 
 #if !MATERIAL_SHADINGMODEL_UNLIT
-		Radiance += StepTransmittance * Scattering * EnvLight; // Ambient
+		Radiance += StepTransmittance * Scattering * (EnvLight + LightCol * AMBIENT); // Ambient
 
 		// Only support single directional lighting.
 		{

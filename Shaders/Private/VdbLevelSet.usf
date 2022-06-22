@@ -43,6 +43,7 @@ StructuredBuffer<uint> PrimaryVdbBuffer;
 #define ALBEDO CustomFloatData1.y
 #define DENSITY_MULT CustomFloatData2.x
 #define VOLUME_PADDING CustomFloatData2.y
+#define AMBIENT CustomFloatData2.z
 
 #define IS_TRANSLUCENT USE_SECONDARY_VDB
 
@@ -185,7 +186,7 @@ float4 RaymarchLevelSet(
 		Radiance += StepTransmittance * Absorption * EmissiveColor; // Emissive
 
 #if !MATERIAL_SHADINGMODEL_UNLIT
-		Radiance += StepTransmittance * Scattering * EnvLight; // Ambient
+		Radiance += StepTransmittance * Scattering * (EnvLight + LightCol * AMBIENT); // Ambient
 
 		// Only support single directional lighting.
 		{
