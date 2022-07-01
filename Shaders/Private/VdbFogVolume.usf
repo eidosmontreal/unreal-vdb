@@ -70,7 +70,7 @@ float3 GetLightTransmittance(
 	float RaymarchDistance = Ray.TMax - Ray.TMin;
 	float StepSize = (LOCAL_STEP_SIZE * SHADOW_STEP_SIZE_MULT) / VOXEL_SIZE; // Index Space
 	const uint NumSteps = min(ceil(RaymarchDistance / StepSize), MAX_NUM_STEPS);
-	float StepWorldMeters = StepSize * CENTIMETER_TO_METER;
+	float StepWorldMeters = (LOCAL_STEP_SIZE * SHADOW_STEP_SIZE_MULT) * CENTIMETER_TO_METER;
 
 	FPixelMaterialInputs PixelMaterialInputs = (FPixelMaterialInputs)0;
 
@@ -141,7 +141,7 @@ float4 RaymarchFogVolume(
 	float StepSize = LOCAL_STEP_SIZE / VOXEL_SIZE; // Index space
 	float RaymarchDistance = Ray.TMax - Ray.TMin; // Index space
 	const uint NumSteps = min(ceil(RaymarchDistance / StepSize), MAX_NUM_STEPS);
-	float StepWorldMeters = StepSize * CENTIMETER_TO_METER;
+	float StepWorldMeters = LOCAL_STEP_SIZE * CENTIMETER_TO_METER;
 
 	FPixelMaterialInputs PixelMaterialInputs = (FPixelMaterialInputs)0;
 
@@ -180,6 +180,7 @@ float4 RaymarchFogVolume(
 		// Update total Radiance with all incoming ligth sources
 
 #ifdef ANALYTIC_INTEGRATION
+		Extinction = max(Extinction, 0.00000001);
 		float3 TransmittanceIntegral = (1.0 - exp(-StepWorldMeters * Extinction)) / Extinction;
 		float3 StepTransmittance = Transmittance * TransmittanceIntegral;
 #else
@@ -227,14 +228,8 @@ float4 RaymarchFogVolume(
 		// Update Transmittance
 		Transmittance *= exp(-StepWorldMeters * Extinction);
 
-		const float Threshold = 0.01f;
 		if (all(Transmittance < VdbParams.Threshold))
 		{
-			// Artificially boosting some of the missing contribution. I'm making this up.
-			Radiance += VdbParams.Threshold * Absorption * EmissiveColor;
-#if !MATERIAL_SHADINGMODEL_UNLIT
-			Radiance += VdbParams.Threshold * Scattering * EnvLight;
-#endif
 			Transmittance = 0.0;
 			break;
 		}
