@@ -75,9 +75,13 @@ EVdbClass UVdbAssetComponent::GetVdbClass() const
 
 void UVdbAssetComponent::BroadcastFrameChanged(uint32 Frame)
 {
+	if (CurrFrameIndex != Frame)
+	{
 	CurrFrameIndex = Frame;
+		TargetFrameIndex = CurrFrameIndex;
 	OnFrameChanged.Broadcast(Frame);
 	OnVdbChanged.Broadcast((int32)Frame);
+}
 }
 
 void UVdbAssetComponent::GetReferencedContentObjects(TArray<UObject*>& Objects) const
@@ -96,7 +100,7 @@ FVector3f UVdbAssetComponent::GetVolumeSize() const
 {
 	if (PrimaryVolume)
 	{
-		return FVector3f(PrimaryVolume->GetBounds(CurrFrameIndex).GetSize());
+		return FVector3f(PrimaryVolume->GetBounds(TargetFrameIndex).GetSize());
 	}
 	return FVector3f::OneVector;
 }
@@ -105,7 +109,7 @@ FVector3f UVdbAssetComponent::GetVolumeOffset() const
 {
 	if (PrimaryVolume)
 	{
-		return FVector3f(PrimaryVolume->GetBounds(CurrFrameIndex).Min);
+		return FVector3f(PrimaryVolume->GetBounds(TargetFrameIndex).Min);
 	}
 	return FVector3f::ZeroVector;
 }
@@ -115,7 +119,7 @@ FVector3f UVdbAssetComponent::GetVolumeUvScale() const
 	if (PrimaryVolume)
 	{
 		const FIntVector& LargestVolume = PrimaryVolume->GetLargestVolume();
-		const FVector3f& VolumeSize = PrimaryVolume->GetRenderInfos(CurrFrameIndex)->GetIndexSize();
+		const FVector3f& VolumeSize = PrimaryVolume->GetRenderInfos(TargetFrameIndex)->GetIndexSize();
 
 		return FVector3f(	VolumeSize.X / (float)LargestVolume.X, 
 							VolumeSize.Y / (float)LargestVolume.Y,

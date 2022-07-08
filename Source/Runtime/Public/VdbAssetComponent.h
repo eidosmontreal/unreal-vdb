@@ -73,9 +73,11 @@ class UVdbAssetComponent : public UActorComponent
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnFrameChanged, uint32);
 	FOnFrameChanged OnFrameChanged;
 
+	void SetTargetFrameIndex(uint32 Frame) { TargetFrameIndex = Frame; }
 	uint32 GetCurrFrameIndex() const { return CurrFrameIndex; }
 
 private:
 
 	uint32 CurrFrameIndex = 0;
+	uint32 TargetFrameIndex = 0;
 };

@@ -403,6 +403,7 @@ void UVdbSequenceComponent::TickAtThisTime(const float Time, bool bInIsRunning, 
 	if (ManualTick)
 	{
 		ElapsedTime = Time;
+		if (VdbAssets && !bInIsRunning) VdbAssets->SetTargetFrameIndex(GetFrameIndexFromElapsedTime());
 	}
 }
 
