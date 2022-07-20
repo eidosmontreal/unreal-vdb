@@ -101,4 +101,29 @@ void UVdbMaterialComponent::UpdateSceneProxy(uint32 FrameIndex)
 	}
 }
 
+int32 UVdbMaterialComponent::GetNumMaterials() const 
+{ 
+	return (Material != nullptr) ? 1 : 0; 
+}
+
+void UVdbMaterialComponent::SetMaterial(int32 ElementIndex, class UMaterialInterface* InMaterial)
+{
+	if (InMaterial != Material)
+	{
+		Material = InMaterial;
+		MarkRenderStateDirty();
+	}
+}
+
+template<typename T>
+void UVdbMaterialComponent::SetAttribute(T& Attribute, const T& NewValue)
+{
+	if (AreDynamicDataChangesAllowed() && Attribute != NewValue)
+	{
+		Attribute = NewValue;
+		MarkRenderStateDirty();
+	}
+}
+template void UVdbMaterialComponent::SetAttribute<float>(float& Attribute, const float& NewValue);
+
 #undef LOCTEXT_NAMESPACE

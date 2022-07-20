@@ -26,13 +26,6 @@ class UVdbBlueprintLibrary : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
-	// Set number of samples per pixel
-	UFUNCTION(BlueprintCallable, Category="SparseVolumetrics")
-	static void SetRaymarchingSampleCount(int SampleCount = 1);
-
-	// Set maximum number of ray bounces/iterations during raymarching
-	UFUNCTION(BlueprintCallable, Category="SparseVolumetrics")
-	static void SetMaximumRayDepth(int Depth = 1);
 
 	// Set denoising method
 	UFUNCTION(BlueprintCallable, Category="SparseVolumetrics")

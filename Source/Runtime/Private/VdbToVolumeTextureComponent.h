@@ -23,8 +23,8 @@
 class UVdbSequenceComponent;
 class FTextureResource;
 
-// TODO: We need to find a robust way to only update once if the source volume isn't changing.
-// For now, update every frame. 
+// TODO: extreme solution to a fix I can't find a proper solution to. When loading a level, 
+// copy gets called but is not actually copying content. Probably an order of initialization problem
 #define TICK_EVERY_FRAME
 
 UENUM(BlueprintType)

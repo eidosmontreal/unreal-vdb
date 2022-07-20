@@ -22,16 +22,14 @@
 
 class UVdbAssetComponent;
 
-UCLASS(Blueprintable)
+UCLASS(Blueprintable, ClassGroup = Rendering, HideCategories = (Activation, Input, Physics, Materials, Collision, Lighting, Input, LOD, HLOD, Mobile, Navigation, VirtualTexture))
 class UVdbMaterialComponent : public UPrimitiveComponent
 {
 	GENERATED_UCLASS_BODY()
 
 	virtual ~UVdbMaterialComponent();
 
-	//~ Begin UPrimitiveComponent Interface.
-	virtual bool SupportsStaticLighting() const override { return false; }
-	//~ End UPrimitiveComponent Interface.
+	//-------------------------------------------------------------------------
 
 	// Must be a Volume domain material.
 	UPROPERTY(EditAnywhere, Category = Volume)
@@ -97,11 +95,48 @@ class UVdbMaterialComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|LevelSet")
 	bool TranslucentLevelSet = false;
 
+	//-------------------------------------------------------------------------
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetLocalStepSize(float NewValue) { SetAttribute(LocalStepSize, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetShadowStepSizeMultiplier(float NewValue) { SetAttribute(ShadowStepSizeMultiplier, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetJittering(float NewValue) { SetAttribute(Jittering, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetVolumePadding(float NewValue) { SetAttribute(VolumePadding, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetDensityMultiplier(float NewValue) { SetAttribute(DensityMultiplier, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetAlbedo(float NewValue) { SetAttribute(Albedo, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetAmbient(float NewValue) { SetAttribute(Ambient, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetAnisotropy(float NewValue) { SetAttribute(Anisotropy, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetBlackbodyTemperature(float NewValue) { SetAttribute(BlackbodyTemperature, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetBlackbodyIntensity(float NewValue) { SetAttribute(BlackbodyIntensity, NewValue); }
+
+public:
+
 	//~ Begin USceneComponent Interface.
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const  override;
 	//~ End USceneComponent Interface.
 
 	//~ Begin UPrimitiveComponent Interface.
+	virtual bool SupportsStaticLighting() const override { return false; }
+	virtual int32 GetNumMaterials() const override;
+	virtual void SetMaterial(int32 ElementIndex, class UMaterialInterface* Material) override;
 	virtual UMaterialInterface* GetMaterial(int32 Index) const override { return Material; }
 	virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials = false) const override;
 	virtual FPrimitiveSceneProxy* CreateSceneProxy() override;
@@ -112,6 +147,10 @@ class UVdbMaterialComponent : public UPrimitiveComponent
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Set VdbAssetComponent"), Category = Volume)
 	void SetVdbAssets(UVdbAssetComponent* Comp);
 
-	private:
-		UVdbAssetComponent* VdbAssets;
+private:
+
+	template<typename T>
+	void SetAttribute(T& Attribute, const T& NewValue);
+
+	UVdbAssetComponent* VdbAssets;
 };

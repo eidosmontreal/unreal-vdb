@@ -92,4 +92,17 @@ void UVdbPrincipledComponent::UpdateSceneProxy(uint32 FrameIndex)
 	}
 }
 
+
+template<typename T>
+void UVdbPrincipledComponent::SetAttribute(T& Attribute, const T& NewValue)
+{
+	if (AreDynamicDataChangesAllowed() && Attribute != NewValue)
+	{
+		Attribute = NewValue;
+		MarkRenderStateDirty();
+	}
+}
+template void UVdbPrincipledComponent::SetAttribute<float>(float& Attribute, const float& NewValue);
+template void UVdbPrincipledComponent::SetAttribute<FLinearColor>(FLinearColor& Attribute, const FLinearColor& NewValue);
+
 #undef LOCTEXT_NAMESPACE

@@ -22,7 +22,7 @@
 // Sparse Volumetric VDB actor, not using Unreal's material system but a hardcoded
 // Principled Volume Shader. This actor supports Unreal's pathtracer allowing for 
 // progressive offline rendering.
-UCLASS(ClassGroup = Rendering, Meta = (ComponentWrapperClass))
+UCLASS(ClassGroup = Rendering, HideCategories = (Activation, Input, Physics, Materials, Collision, Lighting, LOD, HLOD, Mobile, Navigation, VirtualTexture), Meta = (ComponentWrapperClass))
 class AVdbPrincipledActor : public AActor
 {
 	GENERATED_UCLASS_BODY()

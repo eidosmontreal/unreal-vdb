@@ -33,7 +33,7 @@ class UVdbAssetComponent;
 // Also note that this component can hack into the Unreal's path-tracer, and render high quality images.
 // We made the delibarate choice to only handle NanoVDB FogVolumes with this component, because they benefit most 
 // from experimentation and path-tracers, and are still an active research area (offline and realtime).
-UCLASS(Blueprintable, ClassGroup = Rendering, hideCategories = (Activation, Collision, Cooking, HLOD, Navigation, VirtualTexture), meta = (BlueprintSpawnableComponent))
+UCLASS(Blueprintable, ClassGroup = Rendering, HideCategories = (Activation, Input, Physics, Materials, Collision, Lighting, LOD, HLOD, Mobile, Navigation, VirtualTexture), meta = (BlueprintSpawnableComponent))
 class UVdbPrincipledComponent : public UPrimitiveComponent
 {
 	GENERATED_UCLASS_BODY()
@@ -124,6 +124,38 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 
 	//----------------------------------------------------------------------------
 
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetStepSize(float NewValue) { SetAttribute(StepSize, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetColor(FLinearColor& NewValue) { SetAttribute(Color, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetDensityMultiplier(float NewValue) { SetAttribute(DensityMultiplier, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetAlbedo(float NewValue) { SetAttribute(Albedo, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetAnisotropy(float NewValue) { SetAttribute(Anisotropy, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetEmissionStrength(float NewValue) { SetAttribute(EmissionStrength, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetEmissionColor(FLinearColor& NewValue) { SetAttribute(EmissionColor, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetBlackbodyIntensity(float NewValue) { SetAttribute(BlackbodyIntensity, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetBlackbodyTint(FLinearColor& NewValue) { SetAttribute(BlackbodyTint, NewValue); }
+
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Volume")
+	void SetTemperature(float NewValue) { SetAttribute(Temperature, NewValue); }
+
+	//----------------------------------------------------------------------------
+	
 	//~ Begin USceneComponent Interface.
 	virtual FBoxSphereBounds CalcBounds(const FTransform& LocalToWorld) const  override;
 	//~ End USceneComponent Interface.
@@ -136,6 +168,9 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 	void UpdateSceneProxy(uint32 FrameIndex);
 
 private:
+
+	template<typename T>
+	void SetAttribute(T& Attribute, const T& NewValue);
 
 	UVdbAssetComponent* VdbAssets;
 };

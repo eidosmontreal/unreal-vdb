@@ -16,16 +16,6 @@
 #include "VolumeRuntimeModule.h"
 #include "Rendering/VdbMaterialRendering.h"
 
-void UVdbBlueprintLibrary::SetRaymarchingSampleCount(int SampleCount)
-{
-	FVolumeRuntimeModule::GetRenderExtension()->SetNbSamples(SampleCount);
-}
-
-void UVdbBlueprintLibrary::SetMaximumRayDepth(int Depth)
-{
-	FVolumeRuntimeModule::GetRenderExtension()->SetMaxRayDepth(Depth);
-}
-
 void UVdbBlueprintLibrary::SetDenoiserMethod(EVdbDenoiserMethod Method)
 {
 	FVolumeRuntimeModule::GetRenderExtension()->SetDenoiserMethod(Method);

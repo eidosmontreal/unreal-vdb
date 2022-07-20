@@ -26,7 +26,7 @@ class UVdbSequenceComponent;
 class UVdbVolumeBase;
 
 // Sparse Volumetric VDB actor, using Unreal's material system
-UCLASS(ClassGroup = Rendering, Meta = (ComponentWrapperClass))
+UCLASS(ClassGroup = Rendering, HideCategories = (Activation, Input, Physics, Materials, Collision, Lighting, LOD, HLOD, Mobile, Navigation, VirtualTexture), Meta = (ComponentWrapperClass))
 class VOLUMERUNTIME_API AVdbMaterialActor : public AActor
 {
 	GENERATED_UCLASS_BODY()

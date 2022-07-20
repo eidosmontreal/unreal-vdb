@@ -38,8 +38,6 @@ public:
 	void CreateMeshBatch(struct FMeshBatch&, const FVdbMaterialSceneProxy*, struct FVdbVertexFactoryUserDataWrapper&, const class FMaterialRenderProxy*) const;
 
 	//~ Setters
-	void SetNbSamples(int Samples) { NbSamples = (uint32)FMath::Max(1, Samples); }
-	void SetMaxRayDepth(int Depth) { MaxRayDepth = (uint32)FMath::Max(1, Depth); }
 	void SetDenoiserMethod(EVdbDenoiserMethod Method) { DenoiserMethod = Method; }
 	//~ End Setters
 
@@ -71,7 +69,5 @@ private:
 	FPostOpaqueRenderDelegate RenderDelegate;
 	FDelegateHandle RenderDelegateHandle;
 
-	uint32 NbSamples = 1;
-	uint32 MaxRayDepth = 5;
 	EVdbDenoiserMethod DenoiserMethod = EVdbDenoiserMethod::GaussianBlur;
 };
