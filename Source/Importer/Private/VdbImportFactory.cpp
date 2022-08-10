@@ -64,6 +64,20 @@ namespace VdbImporterImpl
 		FSlateApplication::Get().AddModalWindow(Window, ParentWindow, false);
 		return OptionsWindow->ShouldImport();
 	}
+
+	auto GetFrameNumber = [](const FString& Filename)
+	{
+		const FString FilenameWithoutPath = FPaths::GetBaseFilename(Filename);
+		const int32 LastNonDigitIndex = FilenameWithoutPath.FindLastCharByPredicate([](TCHAR Letter) { return !FChar::IsDigit(Letter); }) + 1;
+		const FString StrNumberPart = FilenameWithoutPath.RightChop(LastNonDigitIndex);
+
+		int32 Number = -1;
+		if (StrNumberPart.IsNumeric())
+		{
+			TTypeFromString<int32>::FromString(Number, *StrNumberPart);
+		}
+		return Number;
+	};
 }
 
 UVdbImportFactory::UVdbImportFactory(const FObjectInitializer& ObjectInitializer)
@@ -121,28 +135,14 @@ UObject* UVdbImportFactory::FactoryCreateFile(UClass* InClass, UObject* InParent
 
 	bOutOperationCanceled = false;
 
-	auto GetFrameNumber = [](const FString& Filename)
-	{
-		const FString FilenameWithoutPath = FPaths::GetBaseFilename(Filename);
-		const int32 LastNonDigitIndex = FilenameWithoutPath.FindLastCharByPredicate([](TCHAR Letter) { return !FChar::IsDigit(Letter); }) + 1;
-		const FString StrNumberPart = FilenameWithoutPath.RightChop(LastNonDigitIndex);
-
-		int32 Number = 0;
-		if (StrNumberPart.IsNumeric())
-		{
-			TTypeFromString<int32>::FromString(Number, *StrNumberPart);
-		}
-		return Number;
-	};
-
 	TArray<FString> SortedVBDFilenames = ExtractVDBFilenamesForSequence(Filename);
 	TStrongObjectPtr<UVdbImporterOptions> ImporterOptions(NewObject<UVdbImporterOptions>(GetTransientPackage(), TEXT("VDB Importer Options")));
 	ImporterOptions->IsSequence = (SortedVBDFilenames.Num() > 1);
 	ImporterOptions->ImportAsSequence = ImporterOptions->IsSequence;
 	if (ImporterOptions->IsSequence) 
 	{
-		ImporterOptions->FirstFrame = GetFrameNumber(SortedVBDFilenames[0]);
-		ImporterOptions->LastFrame = GetFrameNumber(SortedVBDFilenames.Last());
+		ImporterOptions->FirstFrame = VdbImporterImpl::GetFrameNumber(SortedVBDFilenames[0]);
+		ImporterOptions->LastFrame = VdbImporterImpl::GetFrameNumber(SortedVBDFilenames.Last());
 	}
 
 	if (!IsAutomatedImport())
@@ -228,7 +228,7 @@ UObject* UVdbImportFactory::FactoryCreateFile(UClass* InClass, UObject* InParent
 						ImportTask.EnterProgressFrame(1.0f, FText::Format(LOCTEXT("ImportingSeqUpdate", "Importing Grid \"{0}\", frame {1}/{2}"), FText::FromName(GridInfo->GridName), VDBFileIndex, SortedVBDFilenames.Num()));
 
 						const FString& VDBFilenameWithoutPath = SortedVBDFilenames[VDBFileIndex];
-						int32 FrameNumber = GetFrameNumber(VDBFilenameWithoutPath);
+						int32 FrameNumber = VdbImporterImpl::GetFrameNumber(VDBFilenameWithoutPath);
 						if (FrameNumber < ImporterOptions->FirstFrame || FrameNumber > ImporterOptions->LastFrame)
 							continue;
 
@@ -337,74 +337,71 @@ void UVdbImportFactory::CleanUp()
 
 TArray<FString> UVdbImportFactory::ExtractVDBFilenamesForSequence(const FString& Filename)
 {
-	// Collect and sort by names files to merge
-	TArray<FString> VBDFilenamesSorted;
-
 	const FString InputFilePath = FPaths::GetPath(Filename);
 	const FString BaseFilenameWithoutPath = FPaths::GetBaseFilename(Filename);
 	const int32 NumberStartIndex = BaseFilenameWithoutPath.FindLastCharByPredicate([](TCHAR Letter) { return !FChar::IsDigit(Letter); }) + 1;
 	const FString BaseName = BaseFilenameWithoutPath.Left(NumberStartIndex);
 
-	bool HasIndexZero = false;
+	TArray<FString> VBDFilenames;
+	IFileManager::Get().FindFiles(VBDFilenames, *InputFilePath, TEXT("*.vdb"));
+	VBDFilenames = VBDFilenames.FilterByPredicate([BaseName](const FString& Name) { return Name.Contains(BaseName); });
+
+	int32 MinimumNumber = MAX_int32;
+	for (FString& UnsortedFilename : VBDFilenames)
 	{
-		// Sort vdb filenames
-		FString CurrentFilenameWithoutExtension;
-
-		TArray<FString> VBDFilenames;
-		IFileManager::Get().FindFiles(VBDFilenames, *InputFilePath, TEXT("*.vdb"));
-		VBDFilenames = VBDFilenames.FilterByPredicate([BaseName](const FString& Name) { return Name.Contains(BaseName); });
-
-		VBDFilenamesSorted.SetNum(VBDFilenames.Num() + 1);
-		for (FString& UnsortedFilename : VBDFilenames)
+		int32 FrameNumber = VdbImporterImpl::GetFrameNumber(UnsortedFilename);
+		if (FrameNumber == -1)
 		{
-			CurrentFilenameWithoutExtension = FPaths::GetBaseFilename(UnsortedFilename);
+			return TArray<FString>();
+		}
+		MinimumNumber = FMath::Min(MinimumNumber, FrameNumber);
+	}
 
-			// Extract frame number
-			int32 Number = -1;
-			if (NumberStartIndex <= CurrentFilenameWithoutExtension.Len() - 1)
+	const int32 NumFrames = VBDFilenames.Num();
+
+	// Collect and sort by names files to merge
+	TArray<FString> VBDFilenamesSorted;
+	VBDFilenamesSorted.SetNum(NumFrames);
+
+	for (FString& UnsortedFilename : VBDFilenames)
+	{
+		FString CurrentFilenameWithoutExtension = FPaths::GetBaseFilename(UnsortedFilename);
+
+		// Extract frame number
+		int32 Number = -1;
+		if (NumberStartIndex <= CurrentFilenameWithoutExtension.Len() - 1)
+		{
+			FString StrNumberPart = CurrentFilenameWithoutExtension.RightChop(NumberStartIndex);
+			if (StrNumberPart.IsNumeric())
 			{
-				FString StrNumberPart = CurrentFilenameWithoutExtension.RightChop(NumberStartIndex);
-				if (StrNumberPart.IsNumeric())
-				{
-					TTypeFromString<int32>::FromString(Number, *StrNumberPart);
+				TTypeFromString<int32>::FromString(Number, *StrNumberPart);
 
-					if (Number < 0)
-					{
-						return TArray<FString>();
-					}
-				} 
-				else
+				if (Number < 0)
 				{
 					return TArray<FString>();
 				}
-			}
-			else
-			{
-				return TArray<FString>();
-			}
-
-			HasIndexZero |= (Number == 0);
-			if (Number < VBDFilenamesSorted.Num())
-			{
-				VBDFilenamesSorted[Number] = std::move(UnsortedFilename);
-			}
+			} 
 			else
 			{
 				return TArray<FString>();
 			}
 		}
-	}
+		else
+		{
+			return TArray<FString>();
+		}
 
-	if (HasIndexZero)
-	{
-		VBDFilenamesSorted.Pop();
+		int32 Index = Number - MinimumNumber;
+		if (Index >= 0 && Index < NumFrames)
+		{
+			VBDFilenamesSorted[Index] = std::move(UnsortedFilename);
+		}
+		else
+		{
+			UE_LOG(LogVdbImporter, Error, TEXT("VDB importer: vdb file numbers are not contiguous, import aborted."));
+			return TArray<FString>();
+		}
 	}
-	else
-	{
-		// Transform [1, N] index to [0, N - 1] range
-		VBDFilenamesSorted.RemoveAt(0);
-	}
-
 
 	return VBDFilenamesSorted;
 }
