@@ -14,6 +14,7 @@
 
 #include "VolumeMesh.h"
 #include "LocalVertexFactory.h"
+#include "DynamicMeshBuilder.h"
 
 FVolumeMeshVertexBuffer::FVolumeMeshVertexBuffer()
 {

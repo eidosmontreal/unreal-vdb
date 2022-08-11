@@ -19,6 +19,7 @@
 #include "VdbCommon.h"
 #include "VolumeRuntimeModule.h"
 #include "Rendering/VdbPrincipledRendering.h"
+#include "RenderGraphBuilder.h"
 
 #include "RenderTargetPool.h"
 

@@ -106,7 +106,15 @@ float4 SplineParams[10];
 Buffer<float4> VertexFetch_InstanceOriginBuffer;
 Buffer<float4> VertexFetch_InstanceTransformBuffer;
 Buffer<float4> VertexFetch_InstanceLightmapBuffer;
+
+	#define VF_REQUIRES_HITPROXY_INDIRECTION 1
+	int VertexFactoryGetVertexFetchParameter(int ParameterIndex)
+	{
+		return LocalVF.VertexFetch_Parameters[ParameterIndex];
+	}
 #endif //! MANUAL_VERTEX_FETCH
+
+#define VF_REQUIRES_HITPROXY_INDIRECTION 1
 
 /**
  * Per-vertex inputs from bound vertex buffers
@@ -191,6 +199,8 @@ struct FVertexFactoryInput
 
 #if USE_INSTANCING
 	uint InstanceId : SV_InstanceID;
+#else
+	VF_INSTANCED_STEREO_DECLARE_INPUT_BLOCK()
 #endif
 
 #if GPUSKIN_PASS_THROUGH && !MANUAL_VERTEX_FETCH
@@ -232,18 +242,16 @@ FVertexFactoryInput LoadVertexFactoryInputForHGS(uint TriangleIndex, int VertexI
 #if VF_USE_PRIMITIVE_SCENE_DATA
 	// Note: GetInstanceUserData() stores the GPU-Scene primitive ID
 	int PrimitiveId = GetInstanceUserData();
-	Input.InstanceIdOffset = PrimitiveId | VF_TREAT_INSTANCE_ID_OFFSET_AS_PRIMITIVE_ID_FLAG;
+	uint DrawInstanceId = 0;
 	// We have a unified path for both static meshes and instanced static meshes
 	// However due to static meshes being auto-instanced GetBaseInstanceIndex() may not match InstanceIndex() and a non-zero DrawInstanceId is generated
 	// Force DrawInstanceId to 0 when it is a static mesh by checking NumInstanceSceneDataEntries
-	if (GetPrimitiveData(PrimitiveId).NumInstanceSceneDataEntries == 1)
+	if (GetPrimitiveData(PrimitiveId).NumInstanceSceneDataEntries != 1)
 	{
-	Input.DrawInstanceId = 0;
+		DrawInstanceId = InstanceIndex() - GetBaseInstanceIndex();
 	}
-	else
-	{
-		Input.DrawInstanceId = InstanceIndex() - GetBaseInstanceIndex();
-	}
+
+	VF_GPUSCENE_SET_INPUT_FOR_RT(Input, PrimitiveId, DrawInstanceId);
 #endif // VF_USE_PRIMITIVE_SCENE_DATA
 
 #if USE_INSTANCING
@@ -275,11 +283,7 @@ FVertexFactoryInput LoadVertexFactoryInputForDynamicUpdate(uint TriangleIndex, i
 	Input.Position.z = LocalVF.VertexFetch_PositionBuffer[VertexOffset + 2];
 #endif
 
-#if VF_USE_PRIMITIVE_SCENE_DATA
-	// GPUCULL_TODO: Makes use of DynamicDraw workaround, should instead refactor VF interfaces and provide the instance ID data directly.
-	Input.InstanceIdOffset = PrimitiveId | VF_TREAT_INSTANCE_ID_OFFSET_AS_PRIMITIVE_ID_FLAG;
-	Input.DrawInstanceId = 0;
-#endif // VF_USE_PRIMITIVE_SCENE_DATA
+	VF_GPUSCENE_SET_INPUT_FOR_RT(Input, PrimitiveId, 0U);
 
 	return Input;
 }
@@ -305,6 +309,8 @@ struct FPositionOnlyVertexFactoryInput
 
 #if USE_INSTANCING
 	uint InstanceId : SV_InstanceID;
+#else
+	VF_INSTANCED_STEREO_DECLARE_INPUT_BLOCK()
 #endif
 
 #if MANUAL_VERTEX_FETCH
@@ -332,6 +338,8 @@ struct FPositionAndNormalOnlyVertexFactoryInput
 
 #if USE_INSTANCING
 	uint InstanceId : SV_InstanceID;
+#else
+	VF_INSTANCED_STEREO_DECLARE_INPUT_BLOCK()
 #endif
 
 #if MANUAL_VERTEX_FETCH
@@ -544,6 +552,11 @@ FMaterialPixelParameters GetMaterialPixelParameters(FVertexFactoryInterpolantsVS
 	Result.TwoSidedSign = 1;
 	Result.PrimitiveId = GetPrimitiveId(Interpolants);
 
+#if USES_PER_INSTANCE_CUSTOM_DATA && VF_USE_PRIMITIVE_SCENE_DATA
+	Result.CustomDataOffset = Interpolants.CustomDataOffset;
+	Result.CustomDataCount  = Interpolants.CustomDataCount;
+#endif
+
 #if HAS_INSTANCE_LOCAL_TO_WORLD_PS
 	Result.InstanceLocalToWorld = GetInstanceLocalToWorld(Interpolants);
 #endif
@@ -622,7 +635,7 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 	Result.InstanceWorldToLocal = GetInstanceData(Intermediates).WorldToLocal;
 	Result.PerInstanceParams = Intermediates.PerInstanceParams;
 #endif
-	#if USES_PER_INSTANCE_CUSTOM_DATA
+	#if USES_PER_INSTANCE_CUSTOM_DATA && VF_USE_PRIMITIVE_SCENE_DATA
 		Result.CustomDataOffset = Intermediates.SceneData.InstanceData.CustomDataOffset;
 		Result.CustomDataCount = Intermediates.SceneData.InstanceData.CustomDataCount;
 #endif
@@ -690,8 +703,9 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 	Result.Particle.WorldToParticle = GetPrimitiveData(Intermediates).WorldToLocal;
 #endif
 
-	Result.MaterialVertexAttributes = EvaluateVertexMaterialAttributes(Result);
-
+#if ENABLE_NEW_HLSL_GENERATOR
+	EvaluateVertexMaterialAttributes(Result);
+#endif
 	return Result;
 }
 
@@ -811,7 +825,7 @@ float4 CalcWorldPosition(float4 Position, FLWCMatrix LocalToWorld)
 		// Transform from mesh to world space
 		return TransformLocalToTranslatedWorld(LocalPos.xyz);
 		*/
-	return INVARIANT(TransformLocalToTranslatedWorld(float3(mul(Position, CalcSliceTransform(dot(Position.xyz, SplineMeshDir))).xyz), LocalToWorld));
+	return TransformLocalToTranslatedWorld(float3(mul(Position, CalcSliceTransform(dot(Position.xyz, SplineMeshDir))).xyz), LocalToWorld);
 #else
 	return TransformLocalToTranslatedWorld(Position.xyz, LocalToWorld);
 #endif
@@ -899,7 +913,7 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates(FVertexFactoryInput In
 		Intermediates.PerInstanceParams.x = Intermediates.PerInstanceRandom;
 
 		// PerInstanceParams.y: per-instance fade out amount
-		float3 InstanceTranslatedLocation = TransformLocalToTranslatedWorld(GetInstanceData(Intermediates).LocalBoundsCenter, GetInstanceData(Intermediates).LocalToWorld);
+		float3 InstanceTranslatedLocation = TransformLocalToTranslatedWorld(GetInstanceData(Intermediates).LocalBoundsCenter, GetInstanceData(Intermediates).LocalToWorld).xyz;
 		Intermediates.PerInstanceParams.y = 1.0 - saturate((length(InstanceTranslatedLocation) - InstancingFadeOutParams.x) * InstancingFadeOutParams.y);
 
 		// InstancingFadeOutParams.z,w are RenderSelected and RenderDeselected respectively.
@@ -1098,6 +1112,11 @@ FVertexFactoryInterpolantsVSToPS VertexFactoryGetInterpolantsVSToPS(FVertexFacto
 	Interpolants.PerInstanceParams = Intermediates.PerInstanceParams;
 #endif
 
+#if USES_PER_INSTANCE_CUSTOM_DATA && VF_USE_PRIMITIVE_SCENE_DATA
+	Interpolants.CustomDataOffset = Intermediates.SceneData.InstanceData.CustomDataOffset;
+	Interpolants.CustomDataCount  = Intermediates.SceneData.InstanceData.CustomDataCount;
+#endif
+
 #if INSTANCED_STEREO
 	Interpolants.EyeIndex = 0;
 #endif
@@ -1241,6 +1260,12 @@ float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexF
 	O.InterpolantsVSToPS.LightmapDataIndex = a.InterpolantsVSToPS.LightmapDataIndex;
 #endif
 #endif	
+
+#if USES_PER_INSTANCE_CUSTOM_DATA && VF_USE_PRIMITIVE_SCENE_DATA
+		O.InterpolantsVSToPS.CustomDataOffset = a.InterpolantsVSToPS.CustomDataOffset;
+		O.InterpolantsVSToPS.CustomDataCount  = a.InterpolantsVSToPS.CustomDataCount;
+#endif
+
 	// Do we really need to interpolate TangentToWorld2 here? It should be replaced by the
 	// interpolated normal from 'whatever' interpolation scheme we're using
 
