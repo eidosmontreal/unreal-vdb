@@ -354,7 +354,7 @@ void FVdbPrincipledRendering::RemoveVdbProxy(FVdbPrincipledSceneProxy* Proxy)
 		});
 }
 
-void FVdbPrincipledRendering::PreRenderViewFamily_RenderThread(FRHICommandListImmediate& RHICmdList, FSceneViewFamily& InViewFamily)
+void FVdbPrincipledRendering::PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily)
 {
 	// Reset visibility on all registered FVdbProxies, before SceneVisibility is computed 
 	for (FVdbPrincipledSceneProxy* Proxy : VdbProxies)

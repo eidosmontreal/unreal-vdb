@@ -64,8 +64,6 @@ public:
 		, bTranslucentLevelSet(IsTranslucentLevelSet)
 		, bSecondaryVdb(UseSecondaryVdb)
 	{
-		PassDrawRenderState.SetViewUniformBuffer(InView->ViewUniformBuffer);
-
 		if (bLevelSet && !bTranslucentLevelSet)
 		{
 			PassDrawRenderState.SetBlendState(TStaticBlendState<>::GetRHI());
@@ -115,6 +113,30 @@ public:
 private:
 
 	template<typename VertexShaderType, typename PixelShaderType>
+	bool GetPassShaders(
+		const FMaterial& Material,
+		FVertexFactoryType* VertexFactoryType,
+		TShaderRef<VertexShaderType>& VertexShader,
+		TShaderRef<PixelShaderType>& PixelShader
+	)
+	{
+		FMaterialShaderTypes ShaderTypes;
+		ShaderTypes.AddShaderType<VertexShaderType>();
+		ShaderTypes.AddShaderType<PixelShaderType>();
+
+		FMaterialShaders Shaders;
+		if (!Material.TryGetShaders(ShaderTypes, VertexFactoryType, Shaders))
+		{
+			return false;
+		}
+
+		Shaders.TryGetVertexShader(VertexShader);
+		Shaders.TryGetPixelShader(PixelShader);
+
+		return VertexShader.IsValid() && PixelShader.IsValid();
+	}
+
+	template<typename VertexShaderType, typename PixelShaderType>
 	void Process(
 		const FMeshBatch& MeshBatch,
 		uint64 BatchElementMask,
@@ -130,9 +152,15 @@ private:
 		const FVertexFactory* VertexFactory = MeshBatch.VertexFactory;
 
 		TMeshProcessorShaders<VertexShaderType, PixelShaderType> PassShaders;
-		PassShaders.VertexShader = MaterialResource.GetShader<VertexShaderType>(VertexFactory->GetType(), 0, false);
-		PassShaders.PixelShader = MaterialResource.GetShader<PixelShaderType>(VertexFactory->GetType(), 0, false);
-		if (!PassShaders.VertexShader.IsValid() || !PassShaders.PixelShader.IsValid()) return;
+		if (!GetPassShaders(
+			MaterialResource,
+			VertexFactory->GetType(),
+			PassShaders.VertexShader,
+			PassShaders.PixelShader))
+		{
+			return;
+		}
+
 
 		const FMeshDrawCommandSortKey SortKey = CalculateMeshStaticSortKey(PassShaders.VertexShader, PassShaders.PixelShader);
 		BuildMeshDrawCommands(
@@ -322,6 +350,7 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 		FRDGBuilder& GraphBuilder = *Parameters.GraphBuilder;
 
 		auto* PassParameters = GraphBuilder.AllocParameters<FVdbShaderParametersPS>();
+		PassParameters->View = View->ViewUniformBuffer;
 		PassParameters->VdbUniformBuffer = VdbUniformBuffer;
 		PassParameters->InstanceCulling = FInstanceCullingContext::CreateDummyInstanceCullingUniformBuffer(GraphBuilder);
 		if (RenderTexture)
@@ -445,7 +474,7 @@ void FVdbMaterialRendering::RemoveVdbProxy(FVdbMaterialSceneProxy* Proxy)
 		});
 }
 
-void FVdbMaterialRendering::PreRenderViewFamily_RenderThread(FRHICommandListImmediate& RHICmdList, FSceneViewFamily& InViewFamily)
+void FVdbMaterialRendering::PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily)
 {
 	// Reset visibility on all registered FVdbProxies, before SceneVisibility is computed 
 	for (FVdbMaterialSceneProxy* Proxy : VdbProxies)
