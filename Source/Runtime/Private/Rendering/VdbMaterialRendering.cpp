@@ -57,12 +57,14 @@ public:
 		FMeshPassDrawListContext* InDrawListContext,
 		bool IsLevelSet, bool IsTranslucentLevelSet,
 		bool UseSecondaryVdb,
+		bool UseExtraVdbs,
 		FVdbElementData&& ShaderElementData)
 		: FMeshPassProcessor(Scene, Scene->GetFeatureLevel(), InView, InDrawListContext)
 		, VdbShaderElementData(ShaderElementData)
 		, bLevelSet(IsLevelSet)
 		, bTranslucentLevelSet(IsTranslucentLevelSet)
 		, bSecondaryVdb(UseSecondaryVdb)
+		, bExtraVdbs(UseExtraVdbs)
 	{
 		PassDrawRenderState.SetViewUniformBuffer(InView->ViewUniformBuffer);
 
@@ -100,9 +102,17 @@ public:
 			}
 			else
 			{
-				if (bSecondaryVdb)
+				if (bSecondaryVdb && bExtraVdbs)
+				{
+					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody_Extra>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
+				}
+				else if (bSecondaryVdb)
 				{
 					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
+				}
+				else if (bExtraVdbs)
+				{
+					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Extra>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
 				}
 				else
 				{
@@ -155,6 +165,7 @@ private:
 	bool bLevelSet;
 	bool bTranslucentLevelSet;
 	bool bSecondaryVdb;
+	bool bExtraVdbs;
 };
 
 //-----------------------------------------------------------------------------
@@ -362,12 +373,19 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 							if (!ShaderElementData.PrimaryBufferSRV)
 								return;
 
+							const TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS>& ExtraBuffers = Proxy->GetExtraRenderResources();
+							for (uint32 idx = 0; idx < NUM_EXTRA_VDBS; ++idx)
+							{
+								ShaderElementData.ExtraBuffersSRV[idx] = ExtraBuffers[idx] ? ExtraBuffers[idx]->GetBufferSRV() : ShaderElementData.PrimaryBufferSRV;
+							}
+
 							FVdbMeshProcessor PassMeshProcessor(
 								InView.Family->Scene->GetRenderScene(),
 								&InView,
 								DynamicMeshPassContext,
 								Proxy->IsLevelSet(), Proxy->IsTranslucentLevelSet(),
 								ShaderElementData.SecondaryBufferSRV != nullptr,
+								Proxy->UseExtraRenderResources(),
 								MoveTemp(ShaderElementData));
 
 							FVdbVertexFactoryUserDataWrapper UserData;

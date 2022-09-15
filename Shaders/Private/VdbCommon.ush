@@ -122,6 +122,12 @@ float3 ReadValueVec3f(pnanovdb_coord_t ijk, pnanovdb_buf_t buf, pnanovdb_uint32_
 		pnanovdb_read_float(buf, pnanovdb_address_offset(address, 8u)));
 }
 
+float3 ReadValueVec3f(pnanovdb_vec3_t pos, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
+{
+	pnanovdb_coord_t ijk = pnanovdb_hdda_pos_to_ijk(pos);
+	return ReadValueVec3f(ijk, buf, grid_type, acc);
+}
+
 float4 ReadValueVec4f(pnanovdb_coord_t ijk, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
 {
 	pnanovdb_address_t address = pnanovdb_readaccessor_get_value_address(grid_type, buf, acc, ijk);
@@ -134,23 +140,16 @@ float4 ReadValueVec4f(pnanovdb_coord_t ijk, pnanovdb_buf_t buf, pnanovdb_uint32_
 }
 
 // Faster, but float32 only
-float ReadValueFloat(pnanovdb_coord_t ijk, pnanovdb_buf_t buf, pnanovdb_readaccessor_t acc)
+float ReadValueF32(pnanovdb_coord_t ijk, pnanovdb_buf_t buf, pnanovdb_readaccessor_t acc)
 {
 	pnanovdb_address_t address = pnanovdb_readaccessor_get_value_address(PNANOVDB_GRID_TYPE_FLOAT, buf, acc, ijk);
 	return pnanovdb_read_float(buf, address);
 }
 
-float ReadValueFloat(pnanovdb_vec3_t pos, pnanovdb_buf_t buf, pnanovdb_readaccessor_t acc)
+float ReadValueF32(pnanovdb_vec3_t pos, pnanovdb_buf_t buf, pnanovdb_readaccessor_t acc)
 {
 	pnanovdb_coord_t ijk = pnanovdb_hdda_pos_to_ijk(pos);
-	return ReadValueFloat(ijk, buf, acc);
-}
-
-// NearestNeighbor, Point sampling
-float ReadValue(float Step, VdbRay ray, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
-{
-	pnanovdb_vec3_t pos = pnanovdb_hdda_ray_start(ray.Origin, Step, ray.Direction);
-	return ReadValue(pos, buf, grid_type, acc);
+	return ReadValueF32(ijk, buf, acc);
 }
 
 float TrilinearSampling(pnanovdb_vec3_t pos, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
@@ -178,6 +177,33 @@ float TrilinearSampling(pnanovdb_vec3_t pos, pnanovdb_buf_t buf, pnanovdb_uint32
 			lerp(Values[1][1][0], Values[1][1][1], uvw[2]), 
 		uvw[1]), 
 	uvw[0]);
+}
+
+float3 TrilinearSamplingVec3f(pnanovdb_vec3_t pos, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
+{
+	pnanovdb_coord_t ijk = pnanovdb_hdda_pos_to_ijk(pos);
+	pnanovdb_vec3_t uvw = pos - ijk;
+
+	float3 Values[2][2][2];
+	Values[0][0][0] = ReadValueVec3f(ijk + pnanovdb_coord_t(0, 0, 0), buf, grid_type, acc);
+	Values[0][0][1] = ReadValueVec3f(ijk + pnanovdb_coord_t(0, 0, 1), buf, grid_type, acc);
+	Values[0][1][1] = ReadValueVec3f(ijk + pnanovdb_coord_t(0, 1, 1), buf, grid_type, acc);
+	Values[0][1][0] = ReadValueVec3f(ijk + pnanovdb_coord_t(0, 1, 0), buf, grid_type, acc);
+	Values[1][0][0] = ReadValueVec3f(ijk + pnanovdb_coord_t(1, 0, 0), buf, grid_type, acc);
+	Values[1][0][1] = ReadValueVec3f(ijk + pnanovdb_coord_t(1, 0, 1), buf, grid_type, acc);
+	Values[1][1][1] = ReadValueVec3f(ijk + pnanovdb_coord_t(1, 1, 1), buf, grid_type, acc);
+	Values[1][1][0] = ReadValueVec3f(ijk + pnanovdb_coord_t(1, 1, 0), buf, grid_type, acc);
+
+	return lerp(
+		lerp(
+			lerp(Values[0][0][0], Values[0][0][1], uvw[2]),
+			lerp(Values[0][1][0], Values[0][1][1], uvw[2]),
+			uvw[1]),
+		lerp(
+			lerp(Values[1][0][0], Values[1][0][1], uvw[2]),
+			lerp(Values[1][1][0], Values[1][1][1], uvw[2]),
+			uvw[1]),
+		uvw[0]);
 }
 
 float TrilinearSampling(float Step, VdbRay ray, pnanovdb_buf_t buf, pnanovdb_uint32_t grid_type, pnanovdb_readaccessor_t acc)
@@ -369,7 +395,7 @@ float GetTransmittance(
 		if (t >= ray.TMax)
 			break;
 
-		float density = ReadValue(t, ray, buf, grid_type, acc) * medium.densityScale;
+		float density = ReadValue(ray.Origin + t * ray.Direction, buf, grid_type, acc) * medium.densityScale;
 
 		transmittance *= 1.0f - density * densityMaxInv;
 		if (transmittance < 0.1f)

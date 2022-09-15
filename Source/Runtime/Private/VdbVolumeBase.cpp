@@ -83,3 +83,9 @@ void UVdbVolumeBase::UpdateFromMetadata(const nanovdb::GridMetaData* MetaData)
 	MemoryUsageStr = *GetMemoryString(MemoryUsage, false);
 #endif
 }
+
+bool UVdbVolumeBase::IsVectorGrid() const
+{
+	const FVolumeRenderInfos* Infos = GetRenderInfos(0);
+	return Infos ? Infos->IsVectorGrid() : false;
+}

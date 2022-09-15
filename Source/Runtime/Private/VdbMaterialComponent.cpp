@@ -51,7 +51,7 @@ void UVdbMaterialComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMat
 
 FPrimitiveSceneProxy* UVdbMaterialComponent::CreateSceneProxy()
 {
-	if (!VdbAssets->PrimaryVolume || !VdbAssets->PrimaryVolume->IsValid() || !GetMaterial(0) || VdbAssets->IsVectorGrid())
+	if (!VdbAssets->PrimaryVolume || !VdbAssets->PrimaryVolume->IsValid() || VdbAssets->PrimaryVolume->IsVectorGrid() || !GetMaterial(0))
 		return nullptr;
 
 	return new FVdbMaterialSceneProxy(VdbAssets, this);
@@ -98,6 +98,31 @@ void UVdbMaterialComponent::UpdateSceneProxy(uint32 FrameIndex)
 		{
 			VdbMaterialSceneProxy->Update(IndexToLocal, IndexMin, IndexSize, PrimaryRenderBuffer, SecondaryRenderBuffer);
 		});
+
+		if (VdbAssets->FloatVolume1 || VdbAssets->FloatVolume2 || VdbAssets->FloatVolume3 || VdbAssets->FloatVolume4 ||
+			VdbAssets->VectorVolume1 || VdbAssets->VectorVolume2 || VdbAssets->VectorVolume3 || VdbAssets->VectorVolume4)
+		{
+			auto FillValue = [FrameIndex](UVdbVolumeBase* Base, FVdbRenderBuffer*& Buffer)
+			{
+				UVdbVolumeSequence* Seq = Cast<UVdbVolumeSequence>(Base);
+				Buffer = Seq ? Seq->GetRenderInfos(FrameIndex)->GetRenderResource() : nullptr;
+			};
+			TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS> Buffers;
+			FillValue(VdbAssets->FloatVolume1, Buffers[0]);
+			FillValue(VdbAssets->FloatVolume2, Buffers[1]);
+			FillValue(VdbAssets->FloatVolume3, Buffers[2]);
+			FillValue(VdbAssets->FloatVolume4, Buffers[3]);
+			FillValue(VdbAssets->VectorVolume1, Buffers[4]);
+			FillValue(VdbAssets->VectorVolume2, Buffers[5]);
+			FillValue(VdbAssets->VectorVolume3, Buffers[6]);
+			FillValue(VdbAssets->VectorVolume4, Buffers[7]);
+
+			ENQUEUE_RENDER_COMMAND(UploadVdbGpuData)(
+				[this, VdbMaterialSceneProxy, Buffers](FRHICommandList& RHICmdList)
+				{
+					VdbMaterialSceneProxy->UpdateExtraBuffers(Buffers);
+				});
+		}
 	}
 }
 

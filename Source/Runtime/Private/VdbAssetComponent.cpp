@@ -128,10 +128,4 @@ FVector3f UVdbAssetComponent::GetVolumeUvScale() const
 	return FVector3f::OneVector;
 }
 
-bool UVdbAssetComponent::IsVectorGrid() const 
-{ 
-	const FVolumeRenderInfos* Infos = GetRenderInfos(PrimaryVolume);
-	return Infos ? Infos->IsVectorGrid() : false;
-}
-
 #undef LOCTEXT_NAMESPACE

@@ -24,6 +24,8 @@ THIRD_PARTY_INCLUDES_END
 
 #include "VdbCommon.generated.h"
 
+#define NUM_EXTRA_VDBS 8
+
 DECLARE_LOG_CATEGORY_EXTERN(LogSparseVolumetrics, Log, All);
 
 DECLARE_STATS_GROUP(TEXT("VolumetricVdb"), STATGROUP_Vdb, STATCAT_Advanced);
