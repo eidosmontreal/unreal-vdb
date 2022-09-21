@@ -15,10 +15,12 @@
 #pragma once 
 
 #include "CoreMinimal.h"
+#include "VdbCommon.h"
 #include "PrimitiveSceneProxy.h"
 
 class UVdbAssetComponent;
 class UVdbMaterialComponent;
+class FVdbRenderBuffer;
 
 // Render Thread equivalent of VdbMaterialComponent
 class FVdbMaterialSceneProxy : public FPrimitiveSceneProxy
@@ -35,15 +37,19 @@ public:
 	FVector4f GetCustomFloatData2() const { return CustomFloatData2; }
 	const FMatrix44f& GetIndexToLocal() const { return IndexToLocal; }
 	class UMaterialInterface* GetMaterial() const { return Material; }
-	const class FVdbRenderBuffer* GetPrimaryRenderResource() const { return PrimaryRenderBuffer; }
-	const class FVdbRenderBuffer* GetSecondaryRenderResource() const { return SecondaryRenderBuffer; }
+	const FVdbRenderBuffer* GetDensityRenderResource() const { return DensityRenderBuffer; }
+	const FVdbRenderBuffer* GetTemperatureRenderResource() const { return TemperatureRenderBuffer; }
+	const FVdbRenderBuffer* GetColorRenderResource() const { return ColorRenderBuffer; }
+	const TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS>& GetExtraRenderResources() const { return ExtraRenderBuffers; }
+	bool UseExtraRenderResources() const;
 	
 	bool IsLevelSet() const { return LevelSet; }
 	bool IsTranslucentLevelSet() const { return LevelSet && TranslucentLevelSet; }
 	bool IsTranslucent() const { return !LevelSet || TranslucentLevelSet; }
 	void ResetVisibility() { VisibleViews.Empty(4); }
 	bool IsVisible(const FSceneView* View) const { return VisibleViews.Find(View) != INDEX_NONE; }
-	void Update(const FMatrix44f& IndexToLocal, const FVector3f& IndexMin, const FVector3f& IndexSize, FVdbRenderBuffer* PrimaryRenderBuffer, FVdbRenderBuffer* SecondaryRenderBuffer);
+	void Update(const FMatrix44f& IndexToLocal, const FVector3f& IndexMin, const FVector3f& IndexSize, FVdbRenderBuffer* DensityRenderBuffer, FVdbRenderBuffer* TemperatureRenderBuffer, FVdbRenderBuffer* ColorRenderBuffer);
+	void UpdateExtraBuffers(const TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS>& RenderBuffers);
 
 protected:
 	//~ Begin FPrimitiveSceneProxy Interface
@@ -70,11 +76,15 @@ private:
 	FVector4f CustomFloatData1;
 	FVector4f CustomFloatData2;
 
-	FVdbRenderBuffer* PrimaryRenderBuffer;
-	FVdbRenderBuffer* SecondaryRenderBuffer;
+	FVdbRenderBuffer* DensityRenderBuffer;
+	FVdbRenderBuffer* TemperatureRenderBuffer;
+	FVdbRenderBuffer* ColorRenderBuffer;
 	FVector3f IndexMin;
 	FVector3f IndexSize;
 	FMatrix44f IndexToLocal;
+
+	// extra non-realtime data
+	TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS> ExtraRenderBuffers;
 
 	mutable TArray<const FSceneView*> VisibleViews;
 };

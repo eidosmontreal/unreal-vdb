@@ -24,10 +24,14 @@ uint				DisplayBounds;
 
 // Using Uniform Buffer VdbPrincipledParams
 
-#if PATH_TRACING
-	#define SAMPLING TrilinearSampling
+#define SAMPLING_FLOAT ReadValue
+#define SAMPLING_VECTOR ReadValueVec3f
+#if PATH_TRACING || USE_TRILINEAR_SAMPLING
+	#define SAMPLING_FLOAT_FILTERING TrilinearSampling
+	#define SAMPLING_VECTOR_FILTERING TrilinearSamplingVec3f
 #else
-	#define SAMPLING ReadValue
+	#define SAMPLING_FLOAT_FILTERING SAMPLING_FLOAT
+	#define SAMPLING_VECTOR_FILTERING SAMPLING_VECTOR
 #endif
 
 #if defined(SHADER_VERTEX)
@@ -42,6 +46,24 @@ void MainVS(in float4 InPosition : ATTRIBUTE0, out float4 OutPosition : SV_Posit
 
 #elif defined(SHADER_PIXEL)
 
+// USER DEFINED FUNCTION
+// This shader is "hardcoded", so it is the responsibility of the users to implement their own version of UserDefinedEquation in this file.
+// These function input values will only be valid if the Float and Vector extra Volumes of the VdbPrincipledActor are correctly setup.
+float3 UserDefinedEquation(
+	float3 PhysicallyBasedRadiance,
+	float CustomVdb1, float CustomVdb2, float CustomVdb3, float CustomVdb4,
+	float3 CustomVdb5, float3 CustomVdb6, float3 CustomVdb7, float3 CustomVdb8) 
+{ 
+	// TODO: implement your own function here. And reload shaders in the editor to see the changes live (no need to recompile the engine).
+
+	// Exemple1: pass through
+	return PhysicallyBasedRadiance;
+	// Exemple2: 
+	//return PhysicallyBasedRadiance + CustomVdb1 * CustomVdb5;
+	// Exemple3: 
+	//return PhysicallyBasedRadiance * CustomVdb5 + CustomVdb1 + CustomVdb2 + CustomVdb6.y;
+}
+	 
 // Phase function.
 pnanovdb_vec3_t SampleHenyeyGreenstein(float g, float e1, float e2)
 {
@@ -90,9 +112,9 @@ float3 GetShadowTransmittance(
 		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(ShadowRay.Origin, s, ShadowRay.Direction);
 
 #if LEVEL_SET
-		float Density = ReadValue(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor) < 0.0 ? 1.0 : 0.0;
+		float Density = SAMPLING_FLOAT(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor) < 0.0 ? 1.0 : 0.0;
 #else
-		float Density = ReadValue(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
+		float Density = SAMPLING_FLOAT(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
 #endif
 		AccumDensity += Density * Medium.densityScale;
 	}
@@ -102,7 +124,22 @@ float3 GetShadowTransmittance(
 // Ray Marching version
 float4 RaymarchVolume(
 	VdbSampler DensitySampler,
+#if USE_TEMPERATURE_VDB
 	VdbSampler TemperatureSampler,
+#endif
+#if USE_COLOR_VDB
+	VdbSampler ColorSampler,
+#endif
+#if USE_EXTRA_VDBS
+	VdbSampler FloatSampler1,
+	VdbSampler FloatSampler2,
+	VdbSampler FloatSampler3,
+	VdbSampler FloatSampler4,
+	VdbSampler VectorSampler1,
+	VdbSampler VectorSampler2,
+	VdbSampler VectorSampler3,
+	VdbSampler VectorSampler4,
+#endif
 	pnanovdb_vec3_t bbox_min,
 	pnanovdb_vec3_t bbox_max,
 	VdbRay Ray,
@@ -162,9 +199,9 @@ float4 RaymarchVolume(
 		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
 
 #if LEVEL_SET
-		float Density = SAMPLING(s, Ray, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor) < 0.0 ? 1.0 : 0.0;
+		float Density = SAMPLING_FLOAT(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor) < 0.0 ? 1.0 : 0.0;
 #else
-		float Density = SAMPLING(s, Ray, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
+		float Density = SAMPLING_FLOAT_FILTERING(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
 #endif
 		Density *= Medium.densityScale;
 
@@ -187,6 +224,15 @@ float4 RaymarchVolume(
 			StepTransmittance = Average(StepTransmittance);
 		}
 
+		float3 StepRadiance = 0.0;
+
+        // I'm choosing to use Color grid as a Color tint only and not participate in scattering
+#if USE_COLOR_VDB
+		float3 Color = SAMPLING_VECTOR_FILTERING(iPos, ColorSampler.GridBuffer, ColorSampler.GridType, ColorSampler.Accessor);
+#else
+		float3 Color = 1.0;
+#endif
+
 		// Single scattering from Directional light or Environment
 		if (VdbPrincipledParams.UseDirectionalLight)
 		{
@@ -196,7 +242,7 @@ float4 RaymarchVolume(
 			{
 				ShadowTransmittance = Average(ShadowTransmittance);
 			}
-			Radiance += StepTransmittance * Scattering * LightCol * ShadowTransmittance * PhaseHG(CosThetaPhase, Medium.anisotropy);
+			StepRadiance += StepTransmittance * Scattering * LightCol * ShadowTransmittance * PhaseHG(CosThetaPhase, Medium.anisotropy) * Color;
 		}
 		if (VdbPrincipledParams.UseEnvironmentLight)
 		{
@@ -212,19 +258,36 @@ float4 RaymarchVolume(
 			float3 WorldDir = IndexToWorldDirection(ShadowDirection, VdbPrincipledParams.LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
 			float3 IncomingRadiance = GetSkySHDiffuse(WorldDir) * View.SkyLightColor.rgb;
 
-			Radiance += StepTransmittance * Scattering * IncomingRadiance * ShadowTransmittance;
+			StepRadiance += StepTransmittance * Scattering * IncomingRadiance * ShadowTransmittance * Color;
 		}
 
-#if USE_TEMPERATURE
+#if USE_TEMPERATURE_VDB
 		// Blackbody emissive
-		float Temperature = SAMPLING(s, Ray, TemperatureSampler.GridBuffer, TemperatureSampler.GridType, TemperatureSampler.Accessor) * VdbPrincipledParams.Temperature;
+		float Temperature = SAMPLING_FLOAT_FILTERING(iPos, TemperatureSampler.GridBuffer, TemperatureSampler.GridType, TemperatureSampler.Accessor) * VdbPrincipledParams.Temperature;
 		float3 TemperatureColor = ColorTemperatureToRGB(Temperature) * VdbPrincipledParams.BlackbodyTint * VdbPrincipledParams.BlackbodyIntensity;
 
-		Radiance += StepTransmittance * Absorption * TemperatureColor;
+		StepRadiance += StepTransmittance * Absorption * TemperatureColor;
 #endif
 
 		// Regular emissive
-		Radiance += StepTransmittance * Absorption * VdbPrincipledParams.EmissionStrength * VdbPrincipledParams.EmissionColor;
+		StepRadiance += StepTransmittance * Absorption * VdbPrincipledParams.EmissionStrength * VdbPrincipledParams.EmissionColor;
+
+#if USE_EXTRA_VDBS
+		float FloatValue1 = SAMPLING_FLOAT(iPos, FloatSampler1.GridBuffer, FloatSampler1.GridType, FloatSampler1.Accessor);
+		float FloatValue2 = SAMPLING_FLOAT(iPos, FloatSampler2.GridBuffer, FloatSampler2.GridType, FloatSampler2.Accessor);
+		float FloatValue3 = SAMPLING_FLOAT(iPos, FloatSampler3.GridBuffer, FloatSampler3.GridType, FloatSampler3.Accessor);
+		float FloatValue4 = SAMPLING_FLOAT(iPos, FloatSampler4.GridBuffer, FloatSampler4.GridType, FloatSampler4.Accessor);
+		float3 VectorValue1 = SAMPLING_VECTOR(iPos, VectorSampler1.GridBuffer, VectorSampler1.GridType, VectorSampler1.Accessor);
+		float3 VectorValue2 = SAMPLING_VECTOR(iPos, VectorSampler2.GridBuffer, VectorSampler2.GridType, VectorSampler2.Accessor);
+		float3 VectorValue3 = SAMPLING_VECTOR(iPos, VectorSampler3.GridBuffer, VectorSampler3.GridType, VectorSampler3.Accessor);
+		float3 VectorValue4 = SAMPLING_VECTOR(iPos, VectorSampler4.GridBuffer, VectorSampler4.GridType, VectorSampler4.Accessor);
+
+		// USER DEFINED RENDERING EQUATION
+		// Because this shader is "hardcoded", it is the responsibility of the users to implement their own version of UserDefinedEquation in this file
+		StepRadiance = UserDefinedEquation(StepRadiance, FloatValue1, FloatValue2, FloatValue3, FloatValue4, VectorValue1, VectorValue2, VectorValue3, VectorValue4);
+#endif
+
+		Radiance += StepRadiance;
 
 		Transmittance *= exp(-StepWorldMeters * Extinction);
 
@@ -247,9 +310,21 @@ float4 VdbFogVolume(uint2 LaunchIndex)
 	// Prepare NanoVDB
 
 	VdbSampler DensitySampler = InitVdbSampler(VdbPrincipledParams.VdbDensity);
-	VdbSampler TemperatureSampler = DensitySampler;
-#if USE_TEMPERATURE
-	TemperatureSampler = InitVdbSampler(VdbPrincipledParams.VdbTemperature);
+#if USE_TEMPERATURE_VDB
+	VdbSampler TemperatureSampler = InitVdbSampler(VdbPrincipledParams.VdbTemperature);
+#endif
+#if USE_COLOR_VDB
+	VdbSampler ColorSampler = InitVdbSampler(VdbPrincipledParams.VdbColor);
+#endif
+#if USE_EXTRA_VDBS
+	VdbSampler FloatSampler1 = InitVdbSampler(VdbPrincipledParams.ExtraVdbFloatBuffer1);
+	VdbSampler FloatSampler2 = InitVdbSampler(VdbPrincipledParams.ExtraVdbFloatBuffer2);
+	VdbSampler FloatSampler3 = InitVdbSampler(VdbPrincipledParams.ExtraVdbFloatBuffer3);
+	VdbSampler FloatSampler4 = InitVdbSampler(VdbPrincipledParams.ExtraVdbFloatBuffer4);
+	VdbSampler VectorSampler1 = InitVdbSampler(VdbPrincipledParams.ExtraVdbVectorBuffer1);
+	VdbSampler VectorSampler2 = InitVdbSampler(VdbPrincipledParams.ExtraVdbVectorBuffer2);
+	VdbSampler VectorSampler3 = InitVdbSampler(VdbPrincipledParams.ExtraVdbVectorBuffer3);
+	VdbSampler VectorSampler4 = InitVdbSampler(VdbPrincipledParams.ExtraVdbVectorBuffer4);
 #endif
 
 	pnanovdb_buf_t root_buf = VdbPrincipledParams.VdbDensity;
@@ -282,16 +357,49 @@ float4 VdbFogVolume(uint2 LaunchIndex)
 	for (uint SampleIndex = 0; SampleIndex < VdbPrincipledParams.SamplesPerPixel; ++SampleIndex)
 	{
 		RandomSequence RandSequence;
-		RandomSequence_Initialize(RandSequence, LinearIndex, SampleIndex + NumAccumulations * VdbPrincipledParams.SamplesPerPixel);
 
-		#if PATH_TRACING
-			float2 Jitter = PinholeRandomSample(RandSequence);
-		#else
-			float2 Jitter = (SampleIndex > 0) ? RandomSequence_GenerateSample2D(RandSequence) - 0.5 : 0.0;
-		#endif
+		if (VdbPrincipledParams.TemporalNoise)
+		{
+			// Different seed per frame (StateFrameIndex), per PT accumulation (NumAccumulations) and even per sub-frame (Random) for inter-frame movie render queue AA
+			RandomSequence_Initialize(RandSequence, LaunchIndex.xy, SampleIndex, View.StateFrameIndex + NumAccumulations + View.Random, VdbPrincipledParams.SamplesPerPixel);
+		}
+		else
+		{
+			RandomSequence_Initialize(RandSequence, LinearIndex, SampleIndex + (NumAccumulations + 1) * VdbPrincipledParams.SamplesPerPixel);
+		}
+
+#if PATH_TRACING
+		float2 Jitter = PinholeRandomSample(RandSequence);
+#else
+		float2 Jitter = RandomSequence_GenerateSample2D(RandSequence) - 0.5;
+#endif
+
 		VdbRay Ray = PrepareRayFromPixel(DensitySampler.GridBuffer, DensitySampler.Grid, LaunchIndex.xy, uint2(View.BufferSizeAndInvSize.xy), Jitter, DeviceZ, VdbPrincipledParams.WorldToLocal); // index/vdb space
 
-		Radiance += RaymarchVolume(DensitySampler, TemperatureSampler, bbox_min, bbox_max, Ray, Medium, RandSequence, View.DirectionalLightDirection.xyz, View.DirectionalLightColor.rgb);
+		Radiance += RaymarchVolume(	DensitySampler, 
+									#if USE_TEMPERATURE_VDB
+										TemperatureSampler, 
+									#endif
+									#if USE_COLOR_VDB
+										ColorSampler,
+									#endif
+									#if USE_EXTRA_VDBS
+										FloatSampler1,
+										FloatSampler2,
+										FloatSampler3,
+										FloatSampler4,
+										VectorSampler1,
+										VectorSampler2,
+										VectorSampler3,
+										VectorSampler4,
+									#endif
+									bbox_min, 
+									bbox_max, 
+									Ray, 
+									Medium, 
+									RandSequence, 
+									View.DirectionalLightDirection.xyz, 
+									View.DirectionalLightColor.rgb);
 	}
 
 	Radiance /= VdbPrincipledParams.SamplesPerPixel;

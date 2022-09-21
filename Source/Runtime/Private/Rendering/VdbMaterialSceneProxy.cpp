@@ -23,6 +23,7 @@
 #include "Rendering/VolumeMesh.h"
 #include "Rendering/VdbMaterialRendering.h"
 #include "Materials/Material.h"
+#include "Algo/AnyOf.h"
 
 FVdbMaterialSceneProxy::FVdbMaterialSceneProxy(const UVdbAssetComponent* AssetComponent, const UVdbMaterialComponent* InComponent)
 	: FPrimitiveSceneProxy(InComponent)
@@ -33,20 +34,48 @@ FVdbMaterialSceneProxy::FVdbMaterialSceneProxy(const UVdbAssetComponent* AssetCo
 	TranslucentLevelSet = LevelSet && InComponent->TranslucentLevelSet;
 	VdbMaterialRenderExtension = FVolumeRuntimeModule::GetRenderExtension();
 
-	const FVolumeRenderInfos* PrimaryRenderInfos = AssetComponent->GetRenderInfos(AssetComponent->PrimaryVolume);
-	const FVolumeRenderInfos* SecondaryRenderInfos = AssetComponent->GetRenderInfos(AssetComponent->SecondaryVolume);
+	const FVolumeRenderInfos* PrimaryRenderInfos = AssetComponent->GetRenderInfos(AssetComponent->DensityVolume);
+	DensityRenderBuffer = PrimaryRenderInfos ? PrimaryRenderInfos->GetRenderResource() : nullptr;
 
 	IndexMin = PrimaryRenderInfos->GetIndexMin();
 	IndexSize = PrimaryRenderInfos->GetIndexSize();
 	IndexToLocal = PrimaryRenderInfos->GetIndexToLocal();
-	PrimaryRenderBuffer = PrimaryRenderInfos->GetRenderResource();
-	SecondaryRenderBuffer = SecondaryRenderInfos? SecondaryRenderInfos->GetRenderResource() : nullptr;
 
-	CustomIntData0 = FIntVector4(InComponent->MaxRayDepth, InComponent->SamplesPerPixel, InComponent->ColoredTransmittance, 0);
-	float VoxelSize = AssetComponent->PrimaryVolume->GetVoxelSize();
+	CustomIntData0 = FIntVector4(InComponent->MaxRayDepth, InComponent->SamplesPerPixel, InComponent->ColoredTransmittance, InComponent->TemporalNoise);
+	float VoxelSize = AssetComponent->DensityVolume->GetVoxelSize();
 	CustomFloatData0 = FVector4f(InComponent->LocalStepSize, InComponent->ShadowStepSizeMultiplier, VoxelSize, InComponent->Jittering);
 	CustomFloatData1 = FVector4f(InComponent->Anisotropy, InComponent->Albedo, InComponent->BlackbodyIntensity, InComponent->BlackbodyTemperature);
 	CustomFloatData2 = FVector4f(InComponent->DensityMultiplier, InComponent->VolumePadding, InComponent->Ambient, 0.0);
+
+	auto FillValue = [AssetComponent](UVdbVolumeBase* Base, FVdbRenderBuffer*& Buffer)
+	{
+		const FVolumeRenderInfos* RenderInfos = AssetComponent->GetRenderInfos(Base);
+		Buffer = RenderInfos ? RenderInfos->GetRenderResource() : nullptr;
+	};
+
+	FillValue(AssetComponent->TemperatureVolume, TemperatureRenderBuffer);
+	FillValue(AssetComponent->ColorVolume, ColorRenderBuffer);
+
+	if (AssetComponent->FloatVolume1 || AssetComponent->FloatVolume2 || AssetComponent->FloatVolume3 || AssetComponent->FloatVolume4 ||
+		AssetComponent->VectorVolume1 || AssetComponent->VectorVolume2 || AssetComponent->VectorVolume3 || AssetComponent->VectorVolume4)
+	{
+		// Extra non-realtime data
+		FillValue(AssetComponent->FloatVolume1, ExtraRenderBuffers[0]);
+		FillValue(AssetComponent->FloatVolume2, ExtraRenderBuffers[1]);
+		FillValue(AssetComponent->FloatVolume3, ExtraRenderBuffers[2]);
+		FillValue(AssetComponent->FloatVolume4, ExtraRenderBuffers[3]);
+		FillValue(AssetComponent->VectorVolume1, ExtraRenderBuffers[4]);
+		FillValue(AssetComponent->VectorVolume2, ExtraRenderBuffers[5]);
+		FillValue(AssetComponent->VectorVolume3, ExtraRenderBuffers[6]);
+		FillValue(AssetComponent->VectorVolume4, ExtraRenderBuffers[7]);
+	}
+	else
+	{
+		for (auto& Buffer : ExtraRenderBuffers)
+		{
+			Buffer = nullptr;
+		}
+	}
 }
 
 // This setups associated volume mesh for built-in Unreal passes. 
@@ -120,11 +149,22 @@ void FVdbMaterialSceneProxy::DestroyRenderThreadResources()
 	VdbMaterialRenderExtension->RemoveVdbProxy(this);
 }
 
-void FVdbMaterialSceneProxy::Update(const FMatrix44f& InIndexToLocal, const FVector3f& InIndexMin, const FVector3f& InIndexSize, FVdbRenderBuffer* PrimRenderBuffer, FVdbRenderBuffer* SecRenderBuffer)
+void FVdbMaterialSceneProxy::Update(const FMatrix44f& InIndexToLocal, const FVector3f& InIndexMin, const FVector3f& InIndexSize, FVdbRenderBuffer* PrimRenderBuffer, FVdbRenderBuffer* SecRenderBuffer, FVdbRenderBuffer* TerRenderBuffer)
 {
 	IndexToLocal = InIndexToLocal;
 	IndexMin = InIndexMin;
 	IndexSize = InIndexSize;
-	PrimaryRenderBuffer = PrimRenderBuffer;
-	SecondaryRenderBuffer = SecRenderBuffer;
+	DensityRenderBuffer = PrimRenderBuffer;
+	TemperatureRenderBuffer = SecRenderBuffer;
+	ColorRenderBuffer = TerRenderBuffer;
+}
+
+void FVdbMaterialSceneProxy::UpdateExtraBuffers(const TStaticArray<FVdbRenderBuffer*, 8>& RenderBuffers)
+{
+	ExtraRenderBuffers = RenderBuffers;
+}
+
+bool FVdbMaterialSceneProxy::UseExtraRenderResources() const 
+{ 
+	return Algo::AnyOf(ExtraRenderBuffers, [](FVdbRenderBuffer* Buf) {return Buf != nullptr; }); 
 }

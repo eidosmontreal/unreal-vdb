@@ -65,17 +65,17 @@ void UVdbSequenceComponent::SetVdbAssets(UVdbAssetComponent* Component)
 
 TObjectPtr<UVdbVolumeBase> UVdbSequenceComponent::GetPrimarySequence() const
 {
-	if (VdbAssets && VdbAssets->PrimaryVolume && VdbAssets->PrimaryVolume->IsSequence())
+	if (VdbAssets && VdbAssets->DensityVolume && VdbAssets->DensityVolume->IsSequence())
 	{
-		return VdbAssets->PrimaryVolume;
+		return VdbAssets->DensityVolume;
 	}
 	return nullptr;
 }
 const UVdbVolumeSequence* UVdbSequenceComponent::GetPrincipalSequence() const
 {
-	if (VdbAssets && VdbAssets->PrimaryVolume && VdbAssets->PrimaryVolume->IsSequence())
+	if (VdbAssets && VdbAssets->DensityVolume && VdbAssets->DensityVolume->IsSequence())
 	{
-		return Cast<const UVdbVolumeSequence>(VdbAssets->PrimaryVolume);
+		return Cast<const UVdbVolumeSequence>(VdbAssets->DensityVolume);
 	}
 	return nullptr;
 }

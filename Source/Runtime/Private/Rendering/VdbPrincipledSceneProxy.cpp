@@ -21,27 +21,27 @@
 #include "Rendering/VdbPrincipledRendering.h"
 #include "RenderGraphBuilder.h"
 
+#include "Algo/AnyOf.h"
 #include "RenderTargetPool.h"
 
 FVdbPrincipledSceneProxy::FVdbPrincipledSceneProxy(const UVdbAssetComponent* AssetComponent, const UVdbPrincipledComponent* InComponent)
 	: FPrimitiveSceneProxy(InComponent)
 	, DisplayBounds(InComponent->DisplayBounds)
+	, LevelSet(AssetComponent->GetVdbClass() == EVdbClass::SignedDistance)
+	, TrilinearInterpolation(InComponent->TrilinearInterpolation)
 {
-	LevelSet = AssetComponent->GetVdbClass() == EVdbClass::SignedDistance;
-	
-	const FVolumeRenderInfos* RenderInfosDensity = AssetComponent->GetRenderInfos(AssetComponent->PrimaryVolume);
-	const FVolumeRenderInfos* RenderInfosTemperature = AssetComponent->GetRenderInfos(AssetComponent->SecondaryVolume);
+	const FVolumeRenderInfos* RenderInfosDensity = AssetComponent->GetRenderInfos(AssetComponent->DensityVolume);
 
 	Params.VdbDensity = RenderInfosDensity->GetRenderResource();
-	Params.VdbTemperature = RenderInfosTemperature ? RenderInfosTemperature->GetRenderResource() : nullptr;
 	Params.IndexMin = RenderInfosDensity->GetIndexMin();
 	Params.IndexSize = RenderInfosDensity->GetIndexSize();
 	Params.IndexToLocal = RenderInfosDensity->GetIndexToLocal();
 	Params.MaxRayDepth = InComponent->MaxRayDepth;
 	Params.SamplesPerPixel = InComponent->SamplesPerPixel;
 	Params.StepSize = InComponent->StepSize;
-	Params.VoxelSize = AssetComponent->PrimaryVolume->GetVoxelSize();
+	Params.VoxelSize = AssetComponent->DensityVolume->GetVoxelSize();
 	Params.ColoredTransmittance = uint32(InComponent->ColoredTransmittance);
+	Params.TemporalNoise = uint32(InComponent->TemporalNoise);
 	Params.Color = InComponent->Color;
 	Params.DensityMult = InComponent->DensityMultiplier;
 	Params.Albedo = InComponent->Albedo;
@@ -53,6 +53,36 @@ FVdbPrincipledSceneProxy::FVdbPrincipledSceneProxy(const UVdbAssetComponent* Ass
 	Params.Temperature = InComponent->Temperature;
 	Params.UseDirectionalLight = InComponent->UseDirectionalLight ? 1.0f : 0.0f;
 	Params.UseEnvironmentLight = InComponent->UseEnvironmentLight ? 1.0f : 0.0f;
+
+	auto FillValue = [AssetComponent](UVdbVolumeBase* Base, FVdbRenderBuffer*& Buffer)
+	{
+		const FVolumeRenderInfos* RenderInfos = AssetComponent->GetRenderInfos(Base);
+		Buffer = RenderInfos ? RenderInfos->GetRenderResource() : nullptr;
+	};
+
+	FillValue(AssetComponent->TemperatureVolume, Params.VdbTemperature);
+	FillValue(AssetComponent->ColorVolume, Params.VdbColor);
+
+	if (AssetComponent->FloatVolume1 || AssetComponent->FloatVolume2 || AssetComponent->FloatVolume3 || AssetComponent->FloatVolume4 ||
+		AssetComponent->VectorVolume1 || AssetComponent->VectorVolume2 || AssetComponent->VectorVolume3 || AssetComponent->VectorVolume4)
+	{
+		// Extra non-realtime data
+		FillValue(AssetComponent->FloatVolume1, Params.ExtraVdbs[0]);
+		FillValue(AssetComponent->FloatVolume2, Params.ExtraVdbs[1]);
+		FillValue(AssetComponent->FloatVolume3, Params.ExtraVdbs[2]);
+		FillValue(AssetComponent->FloatVolume4, Params.ExtraVdbs[3]);
+		FillValue(AssetComponent->VectorVolume1, Params.ExtraVdbs[4]);
+		FillValue(AssetComponent->VectorVolume2, Params.ExtraVdbs[5]);
+		FillValue(AssetComponent->VectorVolume3, Params.ExtraVdbs[6]);
+		FillValue(AssetComponent->VectorVolume4, Params.ExtraVdbs[7]);
+	}
+	else
+	{
+		for (auto& Buffer : Params.ExtraVdbs)
+		{
+			Buffer = nullptr;
+		}
+	}
 
 	VdbRenderMgr = FVolumeRuntimeModule::GetRenderPrincipledMgr();
 }
@@ -137,11 +167,22 @@ FRDGTextureRef FVdbPrincipledSceneProxy::GetOrCreateRenderTarget(FRDGBuilder& Gr
 	return GraphBuilder.RegisterExternalTexture(OffscreenRenderTarget[EvenFrame]);
 }
 
-void FVdbPrincipledSceneProxy::Update(const FMatrix44f& InIndexToLocal, const FVector3f& InIndexMin, const FVector3f& InIndexSize, FVdbRenderBuffer* DensityBuffer, FVdbRenderBuffer* TemperatureBuffer)
+void FVdbPrincipledSceneProxy::Update(const FMatrix44f& InIndexToLocal, const FVector3f& InIndexMin, const FVector3f& InIndexSize, FVdbRenderBuffer* DensityBuffer, FVdbRenderBuffer* TemperatureBuffer, FVdbRenderBuffer* ColorBuffer)
 {
 	Params.VdbDensity = DensityBuffer;
 	Params.IndexMin = InIndexMin;
 	Params.IndexSize = InIndexSize;
 	Params.IndexToLocal = InIndexToLocal;
 	Params.VdbTemperature = TemperatureBuffer;
+	Params.VdbColor = ColorBuffer;
+}
+
+void FVdbPrincipledSceneProxy::UpdateExtraBuffers(const TStaticArray<FVdbRenderBuffer*, 8>& RenderBuffers)
+{
+	Params.ExtraVdbs = RenderBuffers;
+}
+
+bool FVdbPrincipledSceneProxy::UseExtraRenderResources() const
+{
+	return Algo::AnyOf(Params.ExtraVdbs, [](FVdbRenderBuffer* Buf) {return Buf != nullptr; });
 }

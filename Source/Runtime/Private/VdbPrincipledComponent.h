@@ -62,6 +62,14 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes")
 	bool ColoredTransmittance = true;
 
+	// Enable temporal noise (including sub-frame variation for movie render queue)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes")
+	bool TemporalNoise = true;
+
+	// Voxel interpolation when sampling VDB data. "Trilinear" if true (EXPENSIVE), "Closest" if false. Enabled by default when using Path Tracing rendering.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (DisplayName = "Trilinear Interpolation (SLOW)"))
+	bool TrilinearInterpolation = false;
+
 	//-------------------------------------------------------------------------------
 	//    Principled Volume Shader Options, inspired by these two sources:
 	// https://docs.arnoldrenderer.com/display/A5AFMUG/Standard+Volume

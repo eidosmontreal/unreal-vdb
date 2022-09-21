@@ -23,9 +23,9 @@ void MainPS(float4 SvPosition : SV_POSITION, out float4 OutColor : SV_Target0)
 	float4 RadianceAndThroughput = InputTexture.SampleLevel(InputSampler, BufferUV, 0);
 
 #if DEBUG_DISPLAY == 1 // RADIANCE_ONLY
-	OutColor = float4(RadianceAndThroughput.rgb, 1.0);
+	OutColor = float4(RadianceAndThroughput.rgb, RadianceAndThroughput.a);
 #elif DEBUG_DISPLAY == 2 // THROUGHPUT_ONLY
-	OutColor = float4(RadianceAndThroughput.aaa, 1.0);
+	OutColor = float4(RadianceAndThroughput.aaa, RadianceAndThroughput.a);
 #else
 	OutColor = float4(RadianceAndThroughput.rgb, RadianceAndThroughput.a);
 #endif

@@ -59,7 +59,7 @@ void UActorFactoryVdbVolume::PostSpawnActor(UObject* Asset, AActor* NewActor)
 
 	UVdbAssetComponent* VdbMaterialComponent = VdbActor->GetVdbAssetComponent();
 	VdbMaterialComponent->UnregisterComponent();
-	VdbMaterialComponent->PrimaryVolume = VdbVolume;
+	VdbMaterialComponent->DensityVolume = VdbVolume;
 	VdbMaterialComponent->RegisterComponent();
 }
 
@@ -70,6 +70,6 @@ void UActorFactoryVdbVolume::PostCreateBlueprint(UObject* Asset, AActor* CDO)
 		UVdbVolumeBase* VdbVolume = CastChecked<UVdbVolumeBase>(Asset);
 		AVdbMaterialActor* VdbActor = CastChecked<AVdbMaterialActor>(CDO);
 		UVdbAssetComponent* VdbMaterialComponent = VdbActor->GetVdbAssetComponent();
-		VdbMaterialComponent->PrimaryVolume = VdbVolume;
+		VdbMaterialComponent->DensityVolume = VdbVolume;
 	}
 }

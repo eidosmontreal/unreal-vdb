@@ -57,23 +57,50 @@ IMPLEMENT_SHADER_TYPE(, FCompositePS, TEXT("/Plugin/VdbVolume/Private/VdbComposi
 
 void VdbComposite::CompositeFullscreen(FRDGBuilder& GraphBuilder, FRDGTexture* InputTexture, FRDGTexture* OutTexture, const FSceneView* View)
 {
+	static uint32 LastFrame = 0;
+
+	// If DebugDisplayMode is 0 (default), composite VDB RGBA onto backbuffer. If "PropagateAlpha" option is enabled, it requires a bit more work. See next comments.
+	// If DebugDisplayMode is 1, show VDB RGB renders only (alpha blended on a black background)
+	// If DebugDisplayMode is 2, show VDB Alpha renders only (alpha blended on a black background)
+	int DebugDisplayMode = CVarVdbCompositeDebugMode.GetValueOnRenderThread();
+	DebugDisplayMode = FMath::Clamp(DebugDisplayMode, 0, 2);
+
+	bool Clear = false; 
+	if (LastFrame != View->Family->FrameNumber) // only clear once per frame
+	{
+		LastFrame = View->Family->FrameNumber;
+		Clear = DebugDisplayMode > 0; // Clear backbuffer to black for debug display
+	}
+
 	FIntRect Viewport(FIntPoint(0, 0), OutTexture->Desc.Extent);
 
 	FCompositePS::FParameters* PassParameters = GraphBuilder.AllocParameters<FCompositePS::FParameters>();
 	PassParameters->ViewUniformBuffer = View->ViewUniformBuffer;
 	PassParameters->InputTexture = InputTexture;
 	PassParameters->InputSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-	PassParameters->RenderTargets[0] = FRenderTargetBinding(OutTexture, ERenderTargetLoadAction::ELoad);
+	PassParameters->RenderTargets[0] = FRenderTargetBinding(OutTexture, Clear ? ERenderTargetLoadAction::EClear : ERenderTargetLoadAction::ELoad);
 
-	int DebugDisplayMode = CVarVdbCompositeDebugMode.GetValueOnRenderThread();
-	DebugDisplayMode = FMath::Clamp(DebugDisplayMode, 0, 2);
 	FCompositePS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FCompositePS::FDisplayMethod>(DebugDisplayMode);
 
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 	TShaderMapRef<FCompositePS> PixelShader(GlobalShaderMap, PermutationVector);
 
-	FRHIBlendState* BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_One>::GetRHI();
+	// Alpha usage/output is controlled with r.PostProcessing.PropagateAlpha.
+	// When enabled (PropagateAlpha is set to 1 or 2), the alpha values are actually inversed:
+	//		0: valid pixel
+	//		1: invalid pixel (background)
+	// 
+	// To composite a regular VDB alpha with an inversed alpha in the background, we can simplify the equation:
+	// Regular case: 
+	//		Alpha = Alpha_foreground + Alpha_bakground * (1 - Alpha_foreground)
+	// Our case: 
+	//		InversedAlpha = 1 - (Alpha_foreground + (1 - InversedAlpha_background) * (1 - Alpha_foreground))
+	//		InversedAlpha = 1 - (Alpha_foreground + 1 - InversedAlpha_background - Alpha_foreground + InversedAlpha_background * Alpha_foreground)
+	//		InversedAlpha = InversedAlpha_background - InversedAlpha_background * Alpha_foreground
+	// This is achievable with BO_ReverseSubtract, BF_DestAlpha, BF_One flags.
+	// When PropagateAlpha is 0 (default), Alpha doesn't matter so any flags will do.
+	FRHIBlendState* BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_InverseSourceAlpha, BO_ReverseSubtract, BF_DestAlpha, BF_One>::GetRHI();
 
 	FPixelShaderUtils::AddFullscreenPass(
 		GraphBuilder,

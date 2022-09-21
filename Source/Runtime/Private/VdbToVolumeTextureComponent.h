@@ -31,14 +31,14 @@ UENUM(BlueprintType)
 enum class EVdbToVolumeMethod : uint8
 {
 	Disabled				UMETA(DisplayName = "No Conversion"),
-	PrimaryR8				UMETA(DisplayName = "Primary R8"),
-	PrimaryR16F				UMETA(DisplayName = "Primary R16F"),
-	PrimaryRGBA8			UMETA(DisplayName = "Primary RGBA8"),
-	PrimaryRGBA16F			UMETA(DisplayName = "Primary RGBA16F"),
-	PrimarySecondaryRG8		UMETA(DisplayName = "Primary R8 + Secondary B8, RG8"),
-	PrimarySecondaryRG16F	UMETA(DisplayName = "Primary R16F + Secondary B16F, RG16F"),
-	PrimarySecondaryRGBA8	UMETA(DisplayName = "Primary A8 + Secondary RGB8, RGBA8"),
-	PrimarySecondaryRGBA16F	UMETA(DisplayName = "Primary A16F + Secondary RGB16F, RGBA16F"),
+	PrimaryR8				UMETA(DisplayName = "Density R8"),
+	PrimaryR16F				UMETA(DisplayName = "Density R16F"),
+	PrimaryRGB8				UMETA(DisplayName = "Color RGB8"),
+	PrimaryRGB16F			UMETA(DisplayName = "Color RGB16F"),
+	PrimarySecondaryRG8		UMETA(DisplayName = "Density R8 + Temperature B8, RG8"),
+	PrimarySecondaryRG16F	UMETA(DisplayName = "Density R16F + Temperature B16F, RG16F"),
+	PrimarySecondaryRGBA8	UMETA(DisplayName = "Density A8 + Color RGB8, RGBA8"),
+	PrimarySecondaryRGBA16F	UMETA(DisplayName = "Density A16F + Color RGB16F, RGBA16F"),
 
 	Count					UMETA(Hidden)
 };

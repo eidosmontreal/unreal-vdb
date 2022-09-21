@@ -69,5 +69,5 @@ private:
 	FPostOpaqueRenderDelegate RenderDelegate;
 	FDelegateHandle RenderDelegateHandle;
 
-	EVdbDenoiserMethod DenoiserMethod = EVdbDenoiserMethod::GaussianBlur;
+	EVdbDenoiserMethod DenoiserMethod = EVdbDenoiserMethod::None;
 };

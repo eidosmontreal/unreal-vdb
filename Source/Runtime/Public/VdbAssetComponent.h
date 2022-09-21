@@ -36,13 +36,17 @@ class UVdbAssetComponent : public UActorComponent
 
 	//----------------------------------------------------------------------------
 
-	// Principal mandatory volume. If FogVolume, Density values. If LevelSet, narrow-band level set values.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<class UVdbVolumeBase> PrimaryVolume;
+	// Principal mandatory volume (VDB float grid). If FogVolume, Density values. If LevelSet, narrow-band level set values.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, meta = (AllowPrivateAccess = "true", DisplayName = "Density (float)"))
+	TObjectPtr<UVdbVolumeBase> DensityVolume;
 
-	// Optional second volume. If FogVolume, Temperature values. If LevelSet, unused.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<class UVdbVolumeBase> SecondaryVolume;
+	// Optional second volume (VDB float grid). If FogVolume, Temperature values. If LevelSet, unused.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, meta = (AllowPrivateAccess = "true", DisplayName = "Temperature (float)"))
+	TObjectPtr<UVdbVolumeBase> TemperatureVolume;
+
+	// Optional third volume (VDB vector grid). If FogVolume, Color values. If LevelSet, unused.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, meta = (AllowPrivateAccess = "true", DisplayName = "Color (vector)"))
+	TObjectPtr<UVdbVolumeBase> ColorVolume;
 
 	//----------------------------------------------------------------------------
 
@@ -64,9 +68,6 @@ class UVdbAssetComponent : public UActorComponent
 	UFUNCTION(BlueprintCallable, Category = Volume)
 	FVector3f GetVolumeUvScale() const;
 
-	UFUNCTION(BlueprintCallable, Category = Volume)
-	bool IsVectorGrid() const;
-
 	UPROPERTY(BlueprintAssignable, Category = Volume)
 	FOnVdbChanged OnVdbChanged;
 	
@@ -80,4 +81,60 @@ private:
 
 	uint32 CurrFrameIndex = 0;
 	uint32 TargetFrameIndex = 0;
+
+public:
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif // WITH_EDITOR
+
+	// Extra set of VDB buffers/grids that be can be used however the user wants by 
+	// - manually coding a specific function in Unreal's material graph (with VdbMaterialActors)
+	// - modifying the implementation of UserDefinedEquation in the hardcoded shader VdbPrincipled.usf (with VdbPrincipledActors).
+	// Activating one of these buffers will enable all of them. Don't expect good performances 
+	// with these additional buffers, they are only here for slower but higher flexibility and quality.
+	// 
+	// For VdbMaterialActors, they need their materials to include a custom HLSL node defining *UserDefinedEquation*, as shown below:
+	// 
+	//     return 1.0;
+	// }
+	// #define USER_DEFINED_EXTRA_VDBS
+	// float3 UserDefinedEquation
+	//    (in float3 PhysciallyBasedRadiance,
+	//     in float FloatValue1, in float FloatValue2, in float FloatValue3, in float FloatValue4,
+	//     in float3 VectorValue1, in float3 VectorValue2, in float3 VectorValue3, in float3 VectorValue4)
+	// {
+	//     return <insert you own code here. e.g passthrough: PhysciallyBasedRadiance>;
+	//
+	// For VdbPrincipledActors, modify your own harcoded version of *UserDefinedEquation* in VdbPrincipled.usf
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, AdvancedDisplay, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVdbVolumeBase> FloatVolume1;
+
+	// Extra float volume. Cf FloatVolume1 for more explanations
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, AdvancedDisplay, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVdbVolumeBase> FloatVolume2;
+
+	// Extra float volume. Cf FloatVolume1 for more explanations
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, AdvancedDisplay, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVdbVolumeBase> FloatVolume3;
+
+	// Extra float volume. Cf FloatVolume1 for more explanations
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, AdvancedDisplay, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVdbVolumeBase> FloatVolume4;
+
+	// Extra vector3f volume. Cf FloatVolume1 for more explanations
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, AdvancedDisplay, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVdbVolumeBase> VectorVolume1;
+
+	// Extra vector3f volume. Cf FloatVolume1 for more explanations
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, AdvancedDisplay, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVdbVolumeBase> VectorVolume2;
+
+	// Extra vector3f volume. Cf FloatVolume1 for more explanations
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, AdvancedDisplay, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVdbVolumeBase> VectorVolume3;
+
+	// Extra vector3f volume. Cf FloatVolume1 for more explanations
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, AdvancedDisplay, meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVdbVolumeBase> VectorVolume4;
 };

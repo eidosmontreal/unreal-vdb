@@ -183,6 +183,16 @@ TRDGUniformBufferRef<FVdbPrincipledShaderParams> CreateVdbUniformBuffer(FRDGBuil
 	// Volume Params
 	UniformParameters->VdbDensity = Params.VdbDensity->GetBufferSRV();
 	UniformParameters->VdbTemperature = Params.VdbTemperature ? Params.VdbTemperature->GetBufferSRV() : UniformParameters->VdbDensity;
+	UniformParameters->VdbColor = Params.VdbColor ? Params.VdbColor->GetBufferSRV() : UniformParameters->VdbDensity;
+	UniformParameters->ExtraVdbFloatBuffer1 = Params.ExtraVdbs[0] ? Params.ExtraVdbs[0]->GetBufferSRV() : UniformParameters->VdbDensity;
+	UniformParameters->ExtraVdbFloatBuffer2 = Params.ExtraVdbs[1] ? Params.ExtraVdbs[1]->GetBufferSRV() : UniformParameters->VdbDensity;
+	UniformParameters->ExtraVdbFloatBuffer3 = Params.ExtraVdbs[2] ? Params.ExtraVdbs[2]->GetBufferSRV() : UniformParameters->VdbDensity;
+	UniformParameters->ExtraVdbFloatBuffer4 = Params.ExtraVdbs[3] ? Params.ExtraVdbs[3]->GetBufferSRV() : UniformParameters->VdbDensity;
+	UniformParameters->ExtraVdbVectorBuffer1 = Params.ExtraVdbs[4] ? Params.ExtraVdbs[4]->GetBufferSRV() : UniformParameters->VdbDensity;
+	UniformParameters->ExtraVdbVectorBuffer2 = Params.ExtraVdbs[5] ? Params.ExtraVdbs[5]->GetBufferSRV() : UniformParameters->VdbDensity;
+	UniformParameters->ExtraVdbVectorBuffer3 = Params.ExtraVdbs[6] ? Params.ExtraVdbs[6]->GetBufferSRV() : UniformParameters->VdbDensity;
+	UniformParameters->ExtraVdbVectorBuffer4 = Params.ExtraVdbs[7] ? Params.ExtraVdbs[7]->GetBufferSRV() : UniformParameters->VdbDensity;
+
 	UniformParameters->VolumeScale = Params.IndexSize;
 	UniformParameters->VolumeTranslation = Params.IndexMin;
 	UniformParameters->VolumeToLocal = Params.IndexToLocal;
@@ -193,6 +203,7 @@ TRDGUniformBufferRef<FVdbPrincipledShaderParams> CreateVdbUniformBuffer(FRDGBuil
 	UniformParameters->VoxelSize = Params.VoxelSize;
 	UniformParameters->MaxRayDepth = Params.MaxRayDepth;
 	UniformParameters->ColoredTransmittance = Params.ColoredTransmittance;
+	UniformParameters->TemporalNoise = Params.TemporalNoise;
 	// Material Params
 	auto LinearColorToVector = [](const FLinearColor& Col) { return FVector3f(Col.R, Col.G, Col.B); };
 	UniformParameters->Color = LinearColorToVector(Params.Color);
@@ -280,7 +291,10 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 			FVdbPrincipledPS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FVdbPrincipledPS::FPathTracing>(UsePathTracing);
 			PermutationVector.Set<FVdbPrincipledPS::FUseTemperature>(Proxy->GetParams().VdbTemperature != nullptr);
+			PermutationVector.Set<FVdbPrincipledPS::FUseColor>(Proxy->GetParams().VdbColor != nullptr);
 			PermutationVector.Set<FVdbPrincipledPS::FLevelSet>(Proxy->IsLevelSet());
+			PermutationVector.Set<FVdbPrincipledPS::FTrilinear>(Proxy->UseTrilinearInterpolation());
+			PermutationVector.Set<FVdbPrincipledPS::FExtraVdbs>(Proxy->UseExtraRenderResources());
 
 			FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 			TShaderMapRef<FVdbPrincipledVS> VertexShader(GlobalShaderMap);

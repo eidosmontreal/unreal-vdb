@@ -16,6 +16,7 @@
 
 #include "CoreMinimal.h"
 #include "PrimitiveSceneProxy.h"
+#include "VdbCommon.h"
 
 class FVdbRenderBuffer;
 class FVdbPrincipledRendering;
@@ -24,8 +25,11 @@ struct FVdbPrincipledParams
 {
 	FVdbRenderBuffer* VdbDensity;
 	FVdbRenderBuffer* VdbTemperature;
+	FVdbRenderBuffer* VdbColor;
+	TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS> ExtraVdbs;
 	FVector3f IndexMin;
 	uint32 ColoredTransmittance;
+	uint32 TemporalNoise;
 	FVector3f IndexSize;
 	FMatrix44f IndexToLocal;
 	uint32 MaxRayDepth;
@@ -56,13 +60,16 @@ public:
 
 	const FVdbPrincipledParams& GetParams() const { return Params; }
 	bool GetDisplayBounds() const { return DisplayBounds; }
+	bool UseTrilinearInterpolation() const { return TrilinearInterpolation; }
 	bool IsLevelSet() const { return LevelSet; }
+	bool UseExtraRenderResources() const;
 
 	FRDGTextureRef GetOrCreateRenderTarget(FRDGBuilder& GraphBuilder, const FIntPoint& RtSize, bool EvenFrame);
 
 	void ResetVisibility() { VisibleViews.Empty(4); }
 	bool IsVisible(const FSceneView* View) const { return VisibleViews.Find(View) != INDEX_NONE; }
-	void Update(const FMatrix44f& InIndexToLocal, const FVector3f& InIndexMin, const FVector3f& InIndexSize, FVdbRenderBuffer* DensityBuffer, FVdbRenderBuffer* TemperatureBuffer);
+	void Update(const FMatrix44f& InIndexToLocal, const FVector3f& InIndexMin, const FVector3f& InIndexSize, FVdbRenderBuffer* DensityBuffer, FVdbRenderBuffer* TemperatureBuffer, FVdbRenderBuffer* ColorBuffer);
+	void UpdateExtraBuffers(const TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS>& RenderBuffers);
 
 protected:
 	//~ Begin FPrimitiveSceneProxy Interface
@@ -80,6 +87,7 @@ private:
 	FVdbPrincipledParams Params;
 	bool DisplayBounds;
 	bool LevelSet;
+	bool TrilinearInterpolation;
 
 	// RTs per proxy, for easier translucency support
 	TRefCountPtr<IPooledRenderTarget> OffscreenRenderTarget[2];
