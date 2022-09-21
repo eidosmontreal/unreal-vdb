@@ -26,7 +26,7 @@ int4 CustomIntData0;
 float4 CustomFloatData0;
 float4 CustomFloatData1;
 float4 CustomFloatData2;
-StructuredBuffer<uint> PrimaryVdbBuffer;
+StructuredBuffer<uint> DensityVdbBuffer;
 
 // I can't make a custom MaterialExpression from a plugin. 
 // It's far from ideal but I have to adapt and use a 
@@ -45,7 +45,7 @@ StructuredBuffer<uint> PrimaryVdbBuffer;
 #define VOLUME_PADDING CustomFloatData2.y
 #define AMBIENT CustomFloatData2.z
 
-#define IS_TRANSLUCENT USE_SECONDARY_VDB
+#define IS_TRANSLUCENT USE_TEMPERATURE_VDB
 
 // Raymarch towards light. Compute shadow transmittance
 float3 GetLightTransmittance(
@@ -321,7 +321,7 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 	float4x4 WorldToLocal = LWCHackToFloat(GetPrimitiveData(PrimId).WorldToLocal);
 	float4x4 LocalToWorld = LWCHackToFloat(GetPrimitiveData(PrimId).LocalToWorld);
 
-	VdbSampler VdbSampler = InitVdbSampler(PrimaryVdbBuffer);
+	VdbSampler VdbSampler = InitVdbSampler(DensityVdbBuffer);
 
 	float Exposure = ResolvedView.RealTimeReflectionCapture ? ResolvedView.RealTimeReflectionCapturePreExposure : ResolvedView.PreExposure;
 

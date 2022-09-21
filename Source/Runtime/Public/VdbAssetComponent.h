@@ -37,12 +37,16 @@ class UVdbAssetComponent : public UActorComponent
 	//----------------------------------------------------------------------------
 
 	// Principal mandatory volume (VDB float grid). If FogVolume, Density values. If LevelSet, narrow-band level set values.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UVdbVolumeBase> PrimaryVolume;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, meta = (AllowPrivateAccess = "true", DisplayName = "Density (float)"))
+	TObjectPtr<UVdbVolumeBase> DensityVolume;
 
 	// Optional second volume (VDB float grid). If FogVolume, Temperature values. If LevelSet, unused.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UVdbVolumeBase> SecondaryVolume;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, meta = (AllowPrivateAccess = "true", DisplayName = "Temperature (float)"))
+	TObjectPtr<UVdbVolumeBase> TemperatureVolume;
+
+	// Optional third volume (VDB vector grid). If FogVolume, Color values. If LevelSet, unused.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, meta = (AllowPrivateAccess = "true", DisplayName = "Color (vector)"))
+	TObjectPtr<UVdbVolumeBase> ColorVolume;
 
 	//----------------------------------------------------------------------------
 
@@ -79,21 +83,30 @@ private:
 	uint32 TargetFrameIndex = 0;
 
 public:
-	// Extra set of VDB buffers/grids that be can be used however the user wants by manually coding a specific function 
-	// in Unreal's material graph. Activating one of these buffers will enable all of them. Don't expect good performances 
-	// with these additional buffers, they are only here for slower but higher quality and flexibility.
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif // WITH_EDITOR
+
+	// Extra set of VDB buffers/grids that be can be used however the user wants by 
+	// - manually coding a specific function in Unreal's material graph (with VdbMaterialActors)
+	// - modifying the implementation of UserDefinedEquation in the hardcoded shader VdbPrincipled.usf (with VdbPrincipledActors).
+	// Activating one of these buffers will enable all of them. Don't expect good performances 
+	// with these additional buffers, they are only here for slower but higher flexibility and quality.
 	// 
-	// The Custom material graph node should be something like:
+	// For VdbMaterialActors, they need their materials to include a custom HLSL node defining *UserDefinedEquation*, as shown below:
 	// 
-	// return 1.0;
+	//     return 1.0;
 	// }
 	// #define USER_DEFINED_EXTRA_VDBS
-	// float3 UserDefinedEquation(in float3 PhysciallyBasedRadiance,
-	// in float FloatValue1, in float FloatValue2, in float FloatValue3, in float FloatValue4,
-	// in float3 VectorValue1, in float3 VectorValue2, in float3 VectorValue3, in float3 VectorValue4)
+	// float3 UserDefinedEquation
+	//    (in float3 PhysciallyBasedRadiance,
+	//     in float FloatValue1, in float FloatValue2, in float FloatValue3, in float FloatValue4,
+	//     in float3 VectorValue1, in float3 VectorValue2, in float3 VectorValue3, in float3 VectorValue4)
 	// {
-	// return <insert you own code here. e.g passthrough: PhysciallyBasedRadiance>;
+	//     return <insert you own code here. e.g passthrough: PhysciallyBasedRadiance>;
 	//
+	// For VdbPrincipledActors, modify your own harcoded version of *UserDefinedEquation* in VdbPrincipled.usf
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Volume, AdvancedDisplay, meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UVdbVolumeBase> FloatVolume1;
 

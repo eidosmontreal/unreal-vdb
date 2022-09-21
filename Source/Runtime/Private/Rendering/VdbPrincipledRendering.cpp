@@ -183,6 +183,7 @@ TRDGUniformBufferRef<FVdbPrincipledShaderParams> CreateVdbUniformBuffer(FRDGBuil
 	// Volume Params
 	UniformParameters->VdbDensity = Params.VdbDensity->GetBufferSRV();
 	UniformParameters->VdbTemperature = Params.VdbTemperature ? Params.VdbTemperature->GetBufferSRV() : UniformParameters->VdbDensity;
+	UniformParameters->VdbColor = Params.VdbColor ? Params.VdbColor->GetBufferSRV() : UniformParameters->VdbDensity;
 	UniformParameters->ExtraVdbFloatBuffer1 = Params.ExtraVdbs[0] ? Params.ExtraVdbs[0]->GetBufferSRV() : UniformParameters->VdbDensity;
 	UniformParameters->ExtraVdbFloatBuffer2 = Params.ExtraVdbs[1] ? Params.ExtraVdbs[1]->GetBufferSRV() : UniformParameters->VdbDensity;
 	UniformParameters->ExtraVdbFloatBuffer3 = Params.ExtraVdbs[2] ? Params.ExtraVdbs[2]->GetBufferSRV() : UniformParameters->VdbDensity;
@@ -290,6 +291,7 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 			FVdbPrincipledPS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FVdbPrincipledPS::FPathTracing>(UsePathTracing);
 			PermutationVector.Set<FVdbPrincipledPS::FUseTemperature>(Proxy->GetParams().VdbTemperature != nullptr);
+			PermutationVector.Set<FVdbPrincipledPS::FUseColor>(Proxy->GetParams().VdbColor != nullptr);
 			PermutationVector.Set<FVdbPrincipledPS::FLevelSet>(Proxy->IsLevelSet());
 			PermutationVector.Set<FVdbPrincipledPS::FTrilinear>(Proxy->UseTrilinearInterpolation());
 			PermutationVector.Set<FVdbPrincipledPS::FExtraVdbs>(Proxy->UseExtraRenderResources());

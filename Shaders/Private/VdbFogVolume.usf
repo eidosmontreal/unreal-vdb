@@ -25,8 +25,9 @@ int4 CustomIntData0;
 float4 CustomFloatData0;
 float4 CustomFloatData1;
 float4 CustomFloatData2;
-StructuredBuffer<uint>	PrimaryVdbBuffer;
-StructuredBuffer<uint>	SecondaryVdbBuffer;
+StructuredBuffer<uint>	DensityVdbBuffer;
+StructuredBuffer<uint>	TemperatureVdbBuffer;
+StructuredBuffer<uint>	ColorVdbBuffer;
 
 // #if USE_EXTRA_VDBS
 // Non-realtime extra VDB buffers. Don't use them if you expect good performances.
@@ -119,8 +120,11 @@ float3 GetLightTransmittance(
 
 float4 RaymarchFogVolume(
 	VdbSampler DensitySampler,
-#if USE_SECONDARY_VDB
+#if USE_TEMPERATURE_VDB
 	VdbSampler TemperatureSampler,
+#endif
+#if USE_COLOR_VDB
+	VdbSampler ColorSampler,
 #endif
 #if USE_EXTRA_VDBS
 	VdbSampler FloatSampler1,
@@ -223,7 +227,14 @@ float4 RaymarchFogVolume(
 		StepRadiance += StepTransmittance * Absorption * EmissiveColor; // Emissive
 
 #if !MATERIAL_SHADINGMODEL_UNLIT
-		StepRadiance += StepTransmittance * Scattering * (EnvLight + LightCol * AMBIENT); // Ambient
+	// I'm choosing to use Color grid as a Color tint only and not participate in scattering
+	#if USE_COLOR_VDB
+		float3 Color = SAMPLING_VECTOR_FILTERING(iPos, ColorSampler.GridBuffer, ColorSampler.GridType, ColorSampler.Accessor);
+	#else
+		float3 Color = 1.0;
+	#endif
+
+		StepRadiance += StepTransmittance * Scattering * (EnvLight + LightCol * AMBIENT) * Color; // Ambient
 
 		// Only support single directional lighting.
 		{
@@ -241,17 +252,19 @@ float4 RaymarchFogVolume(
 			{
 				LightTransmittance = Average(LightTransmittance);
 			}
-			StepRadiance += StepTransmittance * Scattering * LightTransmittance * LightCol * PhaseHG(CosThetaPhase, ANISOTROPY);
+			StepRadiance += StepTransmittance * Scattering * LightTransmittance * LightCol * PhaseHG(CosThetaPhase, ANISOTROPY) * Color;
 		}
 #endif
 
-#if USE_SECONDARY_VDB
+
+#if USE_TEMPERATURE_VDB
 		// Second VDB buffer should be Temperature to simulate a blackbody volume
 		float Temperature = SAMPLING_FLOAT_FILTERING(iPos, TemperatureSampler.GridBuffer, TemperatureSampler.GridType, TemperatureSampler.Accessor) * BLACKBODY_TEMPERATURE;
 		float3 TemperatureColor = ColorTemperatureToRGB(Temperature) * BLACKBODY_INTENSITY;
 
 		StepRadiance += StepTransmittance * Absorption * TemperatureColor;
 #endif
+
 
 #if USE_EXTRA_VDBS
 		float FloatValue1 = SAMPLING_FLOAT(iPos, FloatSampler1.GridBuffer, FloatSampler1.GridType, FloatSampler1.Accessor);
@@ -316,9 +329,12 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 	// ------------------------------------------------------------------------
 	// Prepare NanoVDB
 
-	VdbSampler DensitySampler = InitVdbSampler(PrimaryVdbBuffer);
-#if USE_SECONDARY_VDB
-	VdbSampler TemperatureSampler = InitVdbSampler(SecondaryVdbBuffer);
+	VdbSampler DensitySampler = InitVdbSampler(DensityVdbBuffer);
+#if USE_TEMPERATURE_VDB
+	VdbSampler TemperatureSampler = InitVdbSampler(TemperatureVdbBuffer);
+#endif
+#if USE_COLOR_VDB
+	VdbSampler ColorSampler = InitVdbSampler(ColorVdbBuffer);
 #endif
 #if USE_EXTRA_VDBS
 	// Don't even bother with permutations (which are killing Unreal shader compile times.
@@ -360,7 +376,7 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 		}
 		else
 		{
-		RandomSequence_Initialize(RandSequence, LinearIndex, SampleIndex);
+			RandomSequence_Initialize(RandSequence, LinearIndex, SampleIndex);
 			Jitter = (SampleIndex > 0) ? RandomSequence_GenerateSample2D(RandSequence) - 0.5 : 0.0;
 		}
 
@@ -368,8 +384,11 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 
 		Radiance += RaymarchFogVolume(
 							DensitySampler,
-							#if USE_SECONDARY_VDB
+							#if USE_TEMPERATURE_VDB
 								TemperatureSampler,
+							#endif
+							#if USE_COLOR_VDB
+								ColorSampler,
 							#endif
 							#if USE_EXTRA_VDBS
 								FloatSampler1,

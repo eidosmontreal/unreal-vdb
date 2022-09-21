@@ -56,14 +56,15 @@ public:
 		const FSceneView* InView,
 		FMeshPassDrawListContext* InDrawListContext,
 		bool IsLevelSet, bool IsTranslucentLevelSet,
-		bool UseSecondaryVdb,
+		bool UseTempVdb, bool UseColorVdb,
 		bool UseExtraVdbs,
 		FVdbElementData&& ShaderElementData)
 		: FMeshPassProcessor(Scene, Scene->GetFeatureLevel(), InView, InDrawListContext)
 		, VdbShaderElementData(ShaderElementData)
 		, bLevelSet(IsLevelSet)
 		, bTranslucentLevelSet(IsTranslucentLevelSet)
-		, bSecondaryVdb(UseSecondaryVdb)
+		, bTemperatureVdb(UseTempVdb)
+		, bColorVdb(UseColorVdb)
 		, bExtraVdbs(UseExtraVdbs)
 	{
 		PassDrawRenderState.SetViewUniformBuffer(InView->ViewUniformBuffer);
@@ -102,21 +103,38 @@ public:
 			}
 			else
 			{
-				if (bSecondaryVdb && bExtraVdbs)
+				// combination of 3 params: 2^3 = 8 different cases
+				if (!bTemperatureVdb && !bColorVdb && !bExtraVdbs)
 				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody_Extra>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
+					Process<FVdbShaderVS, FVdbShaderPS_FogVolume>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
 				}
-				else if (bSecondaryVdb)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (bExtraVdbs)
+				else if (!bTemperatureVdb && !bColorVdb && bExtraVdbs)
 				{
 					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Extra>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
 				}
-				else
+				else if (!bTemperatureVdb && bColorVdb && !bExtraVdbs)
 				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
+					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Color>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
+				}
+				else if (!bTemperatureVdb && bColorVdb && bExtraVdbs)
+				{
+					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Color_Extra>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
+				}
+				else if (bTemperatureVdb && !bColorVdb && !bExtraVdbs)
+				{
+					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
+				}
+				else if (bTemperatureVdb && !bColorVdb && bExtraVdbs)
+				{
+					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody_Extra>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
+				}
+				else if (bTemperatureVdb && bColorVdb && !bExtraVdbs)
+				{
+					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody_Color>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
+				}
+				else if (bTemperatureVdb && bColorVdb && bExtraVdbs)
+				{
+					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody_Color_Extra>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
 				}
 			}
 		}
@@ -164,7 +182,8 @@ private:
 	FVdbElementData VdbShaderElementData;
 	bool bLevelSet;
 	bool bTranslucentLevelSet;
-	bool bSecondaryVdb;
+	bool bTemperatureVdb;
+	bool bColorVdb;
 	bool bExtraVdbs;
 };
 
@@ -358,7 +377,7 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 
 			for (const FVdbMaterialSceneProxy* Proxy : Proxies)
 			{
-				if (Proxy && Proxy->GetMaterial() && Proxy->IsVisible(&InView) && Proxy->GetPrimaryRenderResource())
+				if (Proxy && Proxy->GetMaterial() && Proxy->IsVisible(&InView) && Proxy->GetDensityRenderResource())
 				{
 					DrawDynamicMeshPass(InView, RHICmdList,
 						[&](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
@@ -368,15 +387,16 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 							ShaderElementData.CustomFloatData0 = Proxy->GetCustomFloatData0();
 							ShaderElementData.CustomFloatData1 = Proxy->GetCustomFloatData1();
 							ShaderElementData.CustomFloatData2 = Proxy->GetCustomFloatData2();
-							ShaderElementData.PrimaryBufferSRV = Proxy->GetPrimaryRenderResource()->GetBufferSRV();
-							ShaderElementData.SecondaryBufferSRV = Proxy->GetSecondaryRenderResource() ? Proxy->GetSecondaryRenderResource()->GetBufferSRV() : nullptr;
-							if (!ShaderElementData.PrimaryBufferSRV)
+							ShaderElementData.DensityBufferSRV = Proxy->GetDensityRenderResource()->GetBufferSRV();
+							ShaderElementData.TemperatureBufferSRV = Proxy->GetTemperatureRenderResource() ? Proxy->GetTemperatureRenderResource()->GetBufferSRV() : nullptr;
+							ShaderElementData.ColorBufferSRV = Proxy->GetColorRenderResource() ? Proxy->GetColorRenderResource()->GetBufferSRV() : nullptr;
+							if (!ShaderElementData.DensityBufferSRV)
 								return;
 
 							const TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS>& ExtraBuffers = Proxy->GetExtraRenderResources();
 							for (uint32 idx = 0; idx < NUM_EXTRA_VDBS; ++idx)
 							{
-								ShaderElementData.ExtraBuffersSRV[idx] = ExtraBuffers[idx] ? ExtraBuffers[idx]->GetBufferSRV() : ShaderElementData.PrimaryBufferSRV;
+								ShaderElementData.ExtraBuffersSRV[idx] = ExtraBuffers[idx] ? ExtraBuffers[idx]->GetBufferSRV() : ShaderElementData.DensityBufferSRV;
 							}
 
 							FVdbMeshProcessor PassMeshProcessor(
@@ -384,7 +404,8 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 								&InView,
 								DynamicMeshPassContext,
 								Proxy->IsLevelSet(), Proxy->IsTranslucentLevelSet(),
-								ShaderElementData.SecondaryBufferSRV != nullptr,
+								ShaderElementData.TemperatureBufferSRV != nullptr,
+								ShaderElementData.ColorBufferSRV != nullptr,
 								Proxy->UseExtraRenderResources(),
 								MoveTemp(ShaderElementData));
 

@@ -37,8 +37,9 @@ public:
 	FVector4f GetCustomFloatData2() const { return CustomFloatData2; }
 	const FMatrix44f& GetIndexToLocal() const { return IndexToLocal; }
 	class UMaterialInterface* GetMaterial() const { return Material; }
-	const FVdbRenderBuffer* GetPrimaryRenderResource() const { return PrimaryRenderBuffer; }
-	const FVdbRenderBuffer* GetSecondaryRenderResource() const { return SecondaryRenderBuffer; }
+	const FVdbRenderBuffer* GetDensityRenderResource() const { return DensityRenderBuffer; }
+	const FVdbRenderBuffer* GetTemperatureRenderResource() const { return TemperatureRenderBuffer; }
+	const FVdbRenderBuffer* GetColorRenderResource() const { return ColorRenderBuffer; }
 	const TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS>& GetExtraRenderResources() const { return ExtraRenderBuffers; }
 	bool UseExtraRenderResources() const;
 	
@@ -47,7 +48,7 @@ public:
 	bool IsTranslucent() const { return !LevelSet || TranslucentLevelSet; }
 	void ResetVisibility() { VisibleViews.Empty(4); }
 	bool IsVisible(const FSceneView* View) const { return VisibleViews.Find(View) != INDEX_NONE; }
-	void Update(const FMatrix44f& IndexToLocal, const FVector3f& IndexMin, const FVector3f& IndexSize, FVdbRenderBuffer* PrimaryRenderBuffer, FVdbRenderBuffer* SecondaryRenderBuffer);
+	void Update(const FMatrix44f& IndexToLocal, const FVector3f& IndexMin, const FVector3f& IndexSize, FVdbRenderBuffer* DensityRenderBuffer, FVdbRenderBuffer* TemperatureRenderBuffer, FVdbRenderBuffer* ColorRenderBuffer);
 	void UpdateExtraBuffers(const TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS>& RenderBuffers);
 
 protected:
@@ -75,8 +76,9 @@ private:
 	FVector4f CustomFloatData1;
 	FVector4f CustomFloatData2;
 
-	FVdbRenderBuffer* PrimaryRenderBuffer;
-	FVdbRenderBuffer* SecondaryRenderBuffer;
+	FVdbRenderBuffer* DensityRenderBuffer;
+	FVdbRenderBuffer* TemperatureRenderBuffer;
+	FVdbRenderBuffer* ColorRenderBuffer;
 	FVector3f IndexMin;
 	FVector3f IndexSize;
 	FMatrix44f IndexToLocal;

@@ -124,8 +124,11 @@ float3 GetShadowTransmittance(
 // Ray Marching version
 float4 RaymarchVolume(
 	VdbSampler DensitySampler,
-#if USE_TEMPERATURE
+#if USE_TEMPERATURE_VDB
 	VdbSampler TemperatureSampler,
+#endif
+#if USE_COLOR_VDB
+	VdbSampler ColorSampler,
 #endif
 #if USE_EXTRA_VDBS
 	VdbSampler FloatSampler1,
@@ -223,6 +226,13 @@ float4 RaymarchVolume(
 
 		float3 StepRadiance = 0.0;
 
+        // I'm choosing to use Color grid as a Color tint only and not participate in scattering
+#if USE_COLOR_VDB
+		float3 Color = SAMPLING_VECTOR_FILTERING(iPos, ColorSampler.GridBuffer, ColorSampler.GridType, ColorSampler.Accessor);
+#else
+		float3 Color = 1.0;
+#endif
+
 		// Single scattering from Directional light or Environment
 		if (VdbPrincipledParams.UseDirectionalLight)
 		{
@@ -232,7 +242,7 @@ float4 RaymarchVolume(
 			{
 				ShadowTransmittance = Average(ShadowTransmittance);
 			}
-			StepRadiance += StepTransmittance * Scattering * LightCol * ShadowTransmittance * PhaseHG(CosThetaPhase, Medium.anisotropy);
+			StepRadiance += StepTransmittance * Scattering * LightCol * ShadowTransmittance * PhaseHG(CosThetaPhase, Medium.anisotropy) * Color;
 		}
 		if (VdbPrincipledParams.UseEnvironmentLight)
 		{
@@ -248,10 +258,10 @@ float4 RaymarchVolume(
 			float3 WorldDir = IndexToWorldDirection(ShadowDirection, VdbPrincipledParams.LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
 			float3 IncomingRadiance = GetSkySHDiffuse(WorldDir) * View.SkyLightColor.rgb;
 
-			StepRadiance += StepTransmittance * Scattering * IncomingRadiance * ShadowTransmittance;
+			StepRadiance += StepTransmittance * Scattering * IncomingRadiance * ShadowTransmittance * Color;
 		}
 
-#if USE_TEMPERATURE
+#if USE_TEMPERATURE_VDB
 		// Blackbody emissive
 		float Temperature = SAMPLING_FLOAT_FILTERING(iPos, TemperatureSampler.GridBuffer, TemperatureSampler.GridType, TemperatureSampler.Accessor) * VdbPrincipledParams.Temperature;
 		float3 TemperatureColor = ColorTemperatureToRGB(Temperature) * VdbPrincipledParams.BlackbodyTint * VdbPrincipledParams.BlackbodyIntensity;
@@ -300,8 +310,11 @@ float4 VdbFogVolume(uint2 LaunchIndex)
 	// Prepare NanoVDB
 
 	VdbSampler DensitySampler = InitVdbSampler(VdbPrincipledParams.VdbDensity);
-#if USE_TEMPERATURE
+#if USE_TEMPERATURE_VDB
 	VdbSampler TemperatureSampler = InitVdbSampler(VdbPrincipledParams.VdbTemperature);
+#endif
+#if USE_COLOR_VDB
+	VdbSampler ColorSampler = InitVdbSampler(VdbPrincipledParams.VdbColor);
 #endif
 #if USE_EXTRA_VDBS
 	VdbSampler FloatSampler1 = InitVdbSampler(VdbPrincipledParams.ExtraVdbFloatBuffer1);
@@ -355,17 +368,20 @@ float4 VdbFogVolume(uint2 LaunchIndex)
 			RandomSequence_Initialize(RandSequence, LinearIndex, SampleIndex + (NumAccumulations + 1) * VdbPrincipledParams.SamplesPerPixel);
 		}
 
-		#if PATH_TRACING
-			float2 Jitter = PinholeRandomSample(RandSequence);
-		#else
+#if PATH_TRACING
+		float2 Jitter = PinholeRandomSample(RandSequence);
+#else
 		float2 Jitter = RandomSequence_GenerateSample2D(RandSequence) - 0.5;
-		#endif
+#endif
 
 		VdbRay Ray = PrepareRayFromPixel(DensitySampler.GridBuffer, DensitySampler.Grid, LaunchIndex.xy, uint2(View.BufferSizeAndInvSize.xy), Jitter, DeviceZ, VdbPrincipledParams.WorldToLocal); // index/vdb space
 
 		Radiance += RaymarchVolume(	DensitySampler, 
-									#if USE_TEMPERATURE
+									#if USE_TEMPERATURE_VDB
 										TemperatureSampler, 
+									#endif
+									#if USE_COLOR_VDB
+										ColorSampler,
 									#endif
 									#if USE_EXTRA_VDBS
 										FloatSampler1,

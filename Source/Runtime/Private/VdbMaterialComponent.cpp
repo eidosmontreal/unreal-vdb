@@ -51,7 +51,7 @@ void UVdbMaterialComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMat
 
 FPrimitiveSceneProxy* UVdbMaterialComponent::CreateSceneProxy()
 {
-	if (!VdbAssets->PrimaryVolume || !VdbAssets->PrimaryVolume->IsValid() || VdbAssets->PrimaryVolume->IsVectorGrid() || !GetMaterial(0))
+	if (!VdbAssets->DensityVolume || !VdbAssets->DensityVolume->IsValid() || VdbAssets->DensityVolume->IsVectorGrid() || !GetMaterial(0))
 		return nullptr;
 
 	return new FVdbMaterialSceneProxy(VdbAssets, this);
@@ -59,9 +59,9 @@ FPrimitiveSceneProxy* UVdbMaterialComponent::CreateSceneProxy()
 
 FBoxSphereBounds UVdbMaterialComponent::CalcBounds(const FTransform& LocalToWorld) const
 {
-	if (VdbAssets->PrimaryVolume != nullptr)
+	if (VdbAssets->DensityVolume != nullptr)
 	{
-		FBoxSphereBounds VdbBounds(VdbAssets->PrimaryVolume->GetGlobalBounds());
+		FBoxSphereBounds VdbBounds(VdbAssets->DensityVolume->GetGlobalBounds());
 		return VdbBounds.TransformBy(LocalToWorld);
 	}
 	else
@@ -78,25 +78,29 @@ void UVdbMaterialComponent::UpdateSceneProxy(uint32 FrameIndex)
 		return;
 	}
 
-	UVdbVolumeSequence* PrimarySequence = Cast<UVdbVolumeSequence>(VdbAssets->PrimaryVolume);
-	const FVolumeRenderInfos* RenderInfosPrimary = PrimarySequence->GetRenderInfos(FrameIndex);
+	UVdbVolumeSequence* DensitySequence = Cast<UVdbVolumeSequence>(VdbAssets->DensityVolume);
+	const FVolumeRenderInfos* RenderInfosDensity = DensitySequence->GetRenderInfos(FrameIndex);
 
-	UVdbVolumeSequence* SecondarySequence = Cast<UVdbVolumeSequence>(VdbAssets->SecondaryVolume);
-	const FVolumeRenderInfos* RenderInfosSecondary = SecondarySequence ? SecondarySequence->GetRenderInfos(FrameIndex) : nullptr;
+	UVdbVolumeSequence* TemperatureSequence = Cast<UVdbVolumeSequence>(VdbAssets->TemperatureVolume);
+	const FVolumeRenderInfos* RenderInfosTemperature = TemperatureSequence ? TemperatureSequence->GetRenderInfos(FrameIndex) : nullptr;
 
-	if (RenderInfosPrimary)
+	UVdbVolumeSequence* ColorSequence = Cast<UVdbVolumeSequence>(VdbAssets->ColorVolume);
+	const FVolumeRenderInfos* RenderInfosColor = ColorSequence ? ColorSequence->GetRenderInfos(FrameIndex) : nullptr;
+
+	if (RenderInfosDensity)
 	{
 		ENQUEUE_RENDER_COMMAND(UploadVdbGpuData)(
 			[this,
 			VdbMaterialSceneProxy,
-			IndexMin = RenderInfosPrimary->GetIndexMin(),
-			IndexSize = RenderInfosPrimary->GetIndexSize(),
-			IndexToLocal = RenderInfosPrimary->GetIndexToLocal(),
-			PrimaryRenderBuffer = RenderInfosPrimary->GetRenderResource(),
-			SecondaryRenderBuffer = RenderInfosSecondary ? RenderInfosSecondary->GetRenderResource() : nullptr]
+			IndexMin = RenderInfosDensity->GetIndexMin(),
+			IndexSize = RenderInfosDensity->GetIndexSize(),
+			IndexToLocal = RenderInfosDensity->GetIndexToLocal(),
+			DensRenderBuffer = RenderInfosDensity->GetRenderResource(),
+			TempRenderBuffer = RenderInfosTemperature ? RenderInfosTemperature->GetRenderResource() : nullptr,
+			ColorRenderBuffer = RenderInfosColor ? RenderInfosColor->GetRenderResource() : nullptr]
 		(FRHICommandList& RHICmdList)
 		{
-			VdbMaterialSceneProxy->Update(IndexToLocal, IndexMin, IndexSize, PrimaryRenderBuffer, SecondaryRenderBuffer);
+			VdbMaterialSceneProxy->Update(IndexToLocal, IndexMin, IndexSize, DensRenderBuffer, TempRenderBuffer, ColorRenderBuffer);
 		});
 
 		if (VdbAssets->FloatVolume1 || VdbAssets->FloatVolume2 || VdbAssets->FloatVolume3 || VdbAssets->FloatVolume4 ||

@@ -106,48 +106,79 @@ void UVdbToVolumeTextureComponent::CopyVdbToVolume_GameThread(uint32 FrameIndex)
 
 	UpdateRenderTargetIfNeeded();
 
-	const FVolumeRenderInfos* RenderInfosPrimary = VdbAssets->GetRenderInfos(VdbAssets->PrimaryVolume);
-	const FVolumeRenderInfos* RenderInfosSecondary = VdbAssets->GetRenderInfos(VdbAssets->SecondaryVolume);
+	const FVolumeRenderInfos* RenderInfosPrimary = VdbAssets->GetRenderInfos(VdbAssets->DensityVolume); // FLOAT
+	const FVolumeRenderInfos* RenderInfosSecondary = VdbAssets->GetRenderInfos(VdbAssets->TemperatureVolume); // FLOAT
+	const FVolumeRenderInfos* RenderInfosTertiary = VdbAssets->GetRenderInfos(VdbAssets->ColorVolume); // VECTOR3
+
+	const FVolumeRenderInfos* FirstRenderInfos = nullptr;
+	const FVolumeRenderInfos* SecondRenderInfos = nullptr;
 
 	switch (Method)
 	{
 		case EVdbToVolumeMethod::PrimaryR8:
 		case EVdbToVolumeMethod::PrimaryR16F:
 		{
-			if (!RenderInfosPrimary) return; 
-			break;
-		}
-		case EVdbToVolumeMethod::PrimaryRGBA8:
-		case EVdbToVolumeMethod::PrimaryRGBA16F:
-		{
-			if (!RenderInfosPrimary) return;
-			if (!RenderInfosPrimary->IsVectorGrid())
+			if (!RenderInfosPrimary)
 			{
-				UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbToVolumeTextureComponent: Trying to use %s as VectorGrid but it is a FloatGrid."), *VdbAssets->PrimaryVolume->GetName());
+				UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbToVolumeTextureComponent: Missing Density grid of %s."), *VdbAssets->GetName());
 				return;
 			}
+			if (RenderInfosPrimary->IsVectorGrid())
+			{
+				UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbToVolumeTextureComponent: Trying to use a VectorGrid as a FloatGrid (%s)."), *VdbAssets->DensityVolume->GetName());
+				return;
+			}
+			FirstRenderInfos = RenderInfosPrimary;
+			break;
+		}
+		case EVdbToVolumeMethod::PrimaryRGB8:
+		case EVdbToVolumeMethod::PrimaryRGB16F:
+		{
+			if (!RenderInfosTertiary)
+			{
+				UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbToVolumeTextureComponent: Missing Color grid of %s."), *VdbAssets->GetName());
+				return;
+			}
+			if (!RenderInfosTertiary->IsVectorGrid())
+			{
+				UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbToVolumeTextureComponent: Trying to use %s as VectorGrid but it is a FloatGrid."), *VdbAssets->ColorVolume->GetName());
+				return;
+			}
+			FirstRenderInfos = RenderInfosTertiary;
 			break;
 		}
 		case EVdbToVolumeMethod::PrimarySecondaryRG8:
 		case EVdbToVolumeMethod::PrimarySecondaryRG16F:
 		{
-			if (!RenderInfosPrimary || !RenderInfosSecondary) return;
-			if (RenderInfosPrimary->IsVectorGrid() || RenderInfosSecondary->IsVectorGrid())
+			if (!RenderInfosPrimary || !RenderInfosSecondary)
 			{
-				UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbToVolumeTextureComponent: Trying to use a VectorGrid as a FloatGrid (either %s or %s)."), *VdbAssets->PrimaryVolume->GetName(), *VdbAssets->SecondaryVolume->GetName());
+				UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbToVolumeTextureComponent: Missing Density and/or Temperature grid of %s."), *VdbAssets->GetName());
 				return;
 			}
+			if (RenderInfosPrimary->IsVectorGrid() || RenderInfosSecondary->IsVectorGrid())
+			{
+				UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbToVolumeTextureComponent: Trying to use a VectorGrid as a FloatGrid (either %s or %s)."), *VdbAssets->DensityVolume->GetName(), *VdbAssets->TemperatureVolume->GetName());
+				return;
+			}
+			FirstRenderInfos = RenderInfosPrimary;
+			SecondRenderInfos = RenderInfosSecondary;
 			break;
 		}
 		case EVdbToVolumeMethod::PrimarySecondaryRGBA8:
 		case EVdbToVolumeMethod::PrimarySecondaryRGBA16F:
 		{
-			if (!RenderInfosPrimary || !RenderInfosSecondary) return;
-			if (RenderInfosPrimary->IsVectorGrid() || !RenderInfosSecondary->IsVectorGrid())
+			if (!RenderInfosPrimary || !RenderInfosTertiary)
 			{
-				UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbToVolumeTextureComponent: Primary VDB Volume %s should be a FloatGrid and Secondary Volume %s should be a VectorGrid."), *VdbAssets->PrimaryVolume->GetName(), *VdbAssets->SecondaryVolume->GetName());
+				UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbToVolumeTextureComponent: Missing Density and/or Color grid of %s."), *VdbAssets->GetName());
 				return;
 			}
+			if (RenderInfosPrimary->IsVectorGrid() || !RenderInfosTertiary->IsVectorGrid())
+			{
+				UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbToVolumeTextureComponent: Density Volume %s should be a FloatGrid and Color Volume %s should be a VectorGrid."), *VdbAssets->DensityVolume->GetName(), *VdbAssets->ColorVolume->GetName());
+				return;
+			}
+			FirstRenderInfos = RenderInfosPrimary;
+			SecondRenderInfos = RenderInfosTertiary;
 			break;
 		}
 	}
@@ -155,11 +186,11 @@ void UVdbToVolumeTextureComponent::CopyVdbToVolume_GameThread(uint32 FrameIndex)
 	ENQUEUE_RENDER_COMMAND(CopyVdbToVolumeTexture)(
 		[this,
 		RenderTarget = VolumeRenderTarget->GameThread_GetRenderTargetResource(),
-		PrimaryVol = RenderInfosPrimary->GetRenderResource(),
-		SecondaryVol = RenderInfosSecondary ? RenderInfosSecondary->GetRenderResource() : nullptr,
+		PrimaryVol = FirstRenderInfos->GetRenderResource(),
+		SecondaryVol = SecondRenderInfos ? SecondRenderInfos->GetRenderResource() : nullptr,
 		VolumeOffset = RenderInfosPrimary->GetIndexMin(),
 		VolumeSize = RenderInfosPrimary->GetIndexSize(),
-		TextureSize = VdbAssets->PrimaryVolume->GetLargestVolume()]
+		TextureSize = VdbAssets->DensityVolume->GetLargestVolume()]
 	(FRHICommandListImmediate& RHICmdList)
 	{
 		CopyVdbToVolume_RenderThread(RHICmdList, RenderTarget, PrimaryVol, SecondaryVol, VolumeOffset, VolumeSize, TextureSize);
@@ -216,8 +247,8 @@ EPixelFormat GetPixelFormat(EVdbToVolumeMethod Method)
 	{
 		case EVdbToVolumeMethod::PrimaryR8:						PixelFormat = EPixelFormat::PF_R8; break;
 		case EVdbToVolumeMethod::PrimaryR16F:					PixelFormat = EPixelFormat::PF_R16F; break;
-		case EVdbToVolumeMethod::PrimaryRGBA8:					PixelFormat = EPixelFormat::PF_B8G8R8A8; break;
-		case EVdbToVolumeMethod::PrimaryRGBA16F:				PixelFormat = EPixelFormat::PF_FloatRGBA; break;
+		case EVdbToVolumeMethod::PrimaryRGB8:					PixelFormat = EPixelFormat::PF_B8G8R8A8; break;
+		case EVdbToVolumeMethod::PrimaryRGB16F:					PixelFormat = EPixelFormat::PF_FloatRGBA; break;
 		case EVdbToVolumeMethod::PrimarySecondaryRG8:			PixelFormat = EPixelFormat::PF_R8G8; break;
 		case EVdbToVolumeMethod::PrimarySecondaryRG16F:			PixelFormat = EPixelFormat::PF_G16R16F; break;
 		case EVdbToVolumeMethod::PrimarySecondaryRGBA8:			PixelFormat = EPixelFormat::PF_B8G8R8A8; break;
@@ -230,9 +261,9 @@ EPixelFormat GetPixelFormat(EVdbToVolumeMethod Method)
 
 void UVdbToVolumeTextureComponent::UpdateRenderTargetIfNeeded(bool Force)
 {
-	if (VolumeRenderTarget && VdbAssets && VdbAssets->PrimaryVolume)
+	if (VolumeRenderTarget && VdbAssets && VdbAssets->DensityVolume)
 	{
-		const FIntVector& MaxSize = VdbAssets->PrimaryVolume->GetLargestVolume();
+		const FIntVector& MaxSize = VdbAssets->DensityVolume->GetLargestVolume();
 
 		EPixelFormat PixelFormat = GetPixelFormat(Method);
 		if (Force || 
