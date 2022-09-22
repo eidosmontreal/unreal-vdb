@@ -144,9 +144,7 @@ float4 RaymarchVolume(
 	pnanovdb_vec3_t bbox_max,
 	VdbRay Ray,
 	HeterogenousMedium Medium,
-	in out RandomSequence RandSequence,
-	pnanovdb_vec3_t lightDir,
-	pnanovdb_vec3_t lightCol)
+	in out RandomSequence RandSequence)
 {
 	if (!CheckBounds(Ray, bbox_min, bbox_max))
 	{
@@ -256,9 +254,9 @@ float4 RaymarchVolume(
 			}
 			
 			float3 WorldDir = IndexToWorldDirection(ShadowDirection, VdbPrincipledParams.LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
-			float3 IncomingRadiance = GetSkySHDiffuse(WorldDir) * View.SkyLightColor.rgb;
+			float3 EnvLight = GetSkySHDiffuse(WorldDir) * View.SkyLightColor.rgb;
 
-			StepRadiance += StepTransmittance * Scattering * IncomingRadiance * ShadowTransmittance * Color;
+			StepRadiance += StepTransmittance * Scattering * EnvLight * (ShadowTransmittance + VdbPrincipledParams.Ambient) * Color;
 		}
 
 #if USE_TEMPERATURE_VDB
@@ -397,9 +395,7 @@ float4 VdbFogVolume(uint2 LaunchIndex)
 									bbox_max, 
 									Ray, 
 									Medium, 
-									RandSequence, 
-									View.DirectionalLightDirection.xyz, 
-									View.DirectionalLightColor.rgb);
+									RandSequence);
 	}
 
 	Radiance /= VdbPrincipledParams.SamplesPerPixel;

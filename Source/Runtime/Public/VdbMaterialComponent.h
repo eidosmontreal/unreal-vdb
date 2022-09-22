@@ -77,7 +77,7 @@ class UVdbMaterialComponent : public UPrimitiveComponent
 	float Albedo = 0.8;
 
 	// Ambient contribution to be added to light scattering, usually needed to cheaply boost volume radiance
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Shading", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Shading", meta = (UIMin = "0.0"))
 	float Ambient = 0.0;
 
 	// Backward or forward scattering direction (aka directional bias).

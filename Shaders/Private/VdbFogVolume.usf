@@ -163,7 +163,7 @@ float4 RaymarchFogVolume(
 	float3 LightCol = View.DirectionalLightColor.rgb;
 	float CosThetaPhase = dot(LightDir, Ray.Direction);
 
-	float3 EnvLight = GetSkySHDiffuseSimple(float3(0.0f, 0.0f, 0.0f)); // without SH directionality
+	float3 EnvLight = GetSkySHDiffuseSimple(float3(0.0f, 0.0f, 0.0f)) * View.SkyLightColor.rgb; // without SH directionality
 #endif
 
 	// ------------------------------------------------------------------------
@@ -234,7 +234,7 @@ float4 RaymarchFogVolume(
 		float3 Color = 1.0;
 	#endif
 
-		StepRadiance += StepTransmittance * Scattering * (EnvLight + LightCol * AMBIENT) * Color; // Ambient
+		StepRadiance += StepTransmittance * Scattering * EnvLight * (1.0 + AMBIENT) * Color; // Ambient
 
 		// Only support single directional lighting.
 		{
@@ -244,15 +244,15 @@ float4 RaymarchFogVolume(
 			ShadowRay.TMin = 0.0f;
 			ShadowRay.TMax = POSITIVE_INFINITY;
 
-			float3 LightTransmittance = GetLightTransmittance(
+			float3 ShadowTransmittance = GetLightTransmittance(
 				bbox_min, bbox_max, ShadowRay, 
 				DensitySampler, SigmaT, 
 				LocalToWorld, RandSequence, MaterialParameters);
 			if (!COLORED_TRANSMITTANCE)
 			{
-				LightTransmittance = Average(LightTransmittance);
+				ShadowTransmittance = Average(ShadowTransmittance);
 			}
-			StepRadiance += StepTransmittance * Scattering * LightTransmittance * LightCol * PhaseHG(CosThetaPhase, ANISOTROPY) * Color;
+			StepRadiance += StepTransmittance * Scattering * LightCol * ShadowTransmittance * PhaseHG(CosThetaPhase, ANISOTROPY) * Color;
 		}
 #endif
 
