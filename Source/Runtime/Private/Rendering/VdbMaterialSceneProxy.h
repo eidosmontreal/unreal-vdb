@@ -46,6 +46,7 @@ public:
 	bool IsLevelSet() const { return LevelSet; }
 	bool IsTranslucentLevelSet() const { return LevelSet && TranslucentLevelSet; }
 	bool IsTranslucent() const { return !LevelSet || TranslucentLevelSet; }
+	bool UseImprovedSkylight() const { return ImprovedSkylight; }
 	void ResetVisibility() { VisibleViews.Empty(4); }
 	bool IsVisible(const FSceneView* View) const { return VisibleViews.Find(View) != INDEX_NONE; }
 	void Update(const FMatrix44f& IndexToLocal, const FVector3f& IndexMin, const FVector3f& IndexSize, FVdbRenderBuffer* DensityRenderBuffer, FVdbRenderBuffer* TemperatureRenderBuffer, FVdbRenderBuffer* ColorRenderBuffer);
@@ -70,6 +71,7 @@ private:
 	class UMaterialInterface* Material = nullptr;
 	bool LevelSet;
 	bool TranslucentLevelSet;
+	bool ImprovedSkylight;
 
 	FIntVector4 CustomIntData0;
 	FVector4f CustomFloatData0;

@@ -81,7 +81,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FVdbShaderParametersPS, )
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
-template<bool IsLevelSet, bool UseTemperatureBuffer, bool UseColorBuffer, bool UseExtraBuffers>
+template<bool IsLevelSet, bool UseTemperatureBuffer, bool UseColorBuffer, bool UseExtraBuffers, bool NicerEnvLight>
 class FVdbShaderPS : public FMeshMaterialShader
 {
 	DECLARE_SHADER_TYPE(FVdbShaderPS, MeshMaterial);
@@ -142,6 +142,7 @@ public:
 		OutEnvironment.SetDefine(TEXT("USE_TEMPERATURE_VDB"), UseTemperatureBuffer);
 		OutEnvironment.SetDefine(TEXT("USE_COLOR_VDB"), UseColorBuffer);
 		OutEnvironment.SetDefine(TEXT("USE_EXTRA_VDBS"), UseExtraBuffers);
+		OutEnvironment.SetDefine(TEXT("NICER_BUT_EXPENSIVE_ENVLIGHT"), NicerEnvLight);
 		OutEnvironment.SetDefine(TEXT("USE_FORCE_TEXTURE_MIP"), TEXT("1"));
 		OutEnvironment.SetDefine(TEXT("SHADER_VERSION_MAJOR"), NANOVDB_MAJOR_VERSION_NUMBER);
 		OutEnvironment.SetDefine(TEXT("SHADER_VERSION_MINOR"), NANOVDB_MINOR_VERSION_NUMBER);
@@ -177,16 +178,26 @@ public:
 		ShaderBindings.Add(ExtraVdbVectorBuffer4, ShaderElementData.ExtraBuffersSRV[7]);
 	}
 };
-typedef FVdbShaderPS<true, false, false, false> FVdbShaderPS_LevelSet;
-typedef FVdbShaderPS<true, true, false, false> FVdbShaderPS_LevelSet_Translucent; // reusing USE_TEMPERATURE_VDB variation for translucency to avoid another variation
-typedef FVdbShaderPS<false, false, false, false>  FVdbShaderPS_FogVolume;
-typedef FVdbShaderPS<false, false, true, false>  FVdbShaderPS_FogVolume_Color;
-typedef FVdbShaderPS<false, false, false, true>  FVdbShaderPS_FogVolume_Extra;
-typedef FVdbShaderPS<false, false, true, true>  FVdbShaderPS_FogVolume_Color_Extra;
-typedef FVdbShaderPS<false, true, false, false>  FVdbShaderPS_FogVolume_Blackbody;
-typedef FVdbShaderPS<false, true, true, false>  FVdbShaderPS_FogVolume_Blackbody_Color;
-typedef FVdbShaderPS<false, true, false, true>  FVdbShaderPS_FogVolume_Blackbody_Extra;
-typedef FVdbShaderPS<false, true, true, true>  FVdbShaderPS_FogVolume_Blackbody_Color_Extra;
+// TODO: this is getting ridiculous. Find other solution
+typedef FVdbShaderPS<true, false, false, false, false> FVdbShaderPS_LevelSet;
+typedef FVdbShaderPS<true, true, false, false, false> FVdbShaderPS_LevelSet_Translucent; // reusing USE_TEMPERATURE_VDB variation for translucency to avoid another variation
+typedef FVdbShaderPS<true, true, false, false, true> FVdbShaderPS_LevelSet_Translucent_EnvLight; // reusing USE_TEMPERATURE_VDB variation for translucency to avoid another variation
+typedef FVdbShaderPS<false, false, false, false, false>  FVdbShaderPS_FogVolume;
+typedef FVdbShaderPS<false, false, false, false, true>  FVdbShaderPS_FogVolume_EnvLight;
+typedef FVdbShaderPS<false, false, true, false, false>  FVdbShaderPS_FogVolume_Color;
+typedef FVdbShaderPS<false, false, true, false, true>  FVdbShaderPS_FogVolume_Color_EnvLight;
+typedef FVdbShaderPS<false, false, false, true, false>  FVdbShaderPS_FogVolume_Extra;
+typedef FVdbShaderPS<false, false, false, true, true>  FVdbShaderPS_FogVolume_Extra_EnvLight;
+typedef FVdbShaderPS<false, false, true, true, false>  FVdbShaderPS_FogVolume_Color_Extra;
+typedef FVdbShaderPS<false, false, true, true, true>  FVdbShaderPS_FogVolume_Color_Extra_EnvLight;
+typedef FVdbShaderPS<false, true, false, false, false>  FVdbShaderPS_FogVolume_Blackbody;
+typedef FVdbShaderPS<false, true, false, false, true>  FVdbShaderPS_FogVolume_Blackbody_EnvLight;
+typedef FVdbShaderPS<false, true, true, false, false>  FVdbShaderPS_FogVolume_Blackbody_Color;
+typedef FVdbShaderPS<false, true, true, false, true>  FVdbShaderPS_FogVolume_Blackbody_Color_EnvLight;
+typedef FVdbShaderPS<false, true, false, true, false>  FVdbShaderPS_FogVolume_Blackbody_Extra;
+typedef FVdbShaderPS<false, true, false, true, true>  FVdbShaderPS_FogVolume_Blackbody_Extra_EnvLight;
+typedef FVdbShaderPS<false, true, true, true, false>  FVdbShaderPS_FogVolume_Blackbody_Color_Extra;
+typedef FVdbShaderPS<false, true, true, true, true>  FVdbShaderPS_FogVolume_Blackbody_Color_Extra_EnvLight;
 
 
 //-----------------------------------------------------------------------------

@@ -32,6 +32,7 @@ FVdbMaterialSceneProxy::FVdbMaterialSceneProxy(const UVdbAssetComponent* AssetCo
 {
 	LevelSet = AssetComponent->GetVdbClass() == EVdbClass::SignedDistance;
 	TranslucentLevelSet = LevelSet && InComponent->TranslucentLevelSet;
+	ImprovedSkylight = InComponent->ImprovedSkylight;
 	VdbMaterialRenderExtension = FVolumeRuntimeModule::GetRenderExtension();
 
 	const FVolumeRenderInfos* PrimaryRenderInfos = AssetComponent->GetRenderInfos(AssetComponent->DensityVolume);

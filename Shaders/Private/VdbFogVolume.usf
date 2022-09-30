@@ -16,10 +16,8 @@
 #include "/Engine/Private/Common.ush"
 #include "/Engine/Private/Random.ush"
 #include "/Engine/Private/ReflectionEnvironmentShared.ush"
-
-#include "/Plugin/VdbVolume/Private/VdbMaterial.ush"
+#include "/Engine/Generated/Material.ush"
 #include "/Engine/Generated/VertexFactory.ush"
-#include "/Plugin/VdbVolume/Private/VdbCommon.ush"
 
 int4 CustomIntData0;
 float4 CustomFloatData0;
@@ -71,48 +69,8 @@ StructuredBuffer<uint>	ExtraVdbVectorBuffer4;
 	#define SAMPLING_VECTOR_FILTERING SAMPLING_VECTOR
 #endif
 
-// Raymarch towards light. Compute shadow transmittance
-float3 GetLightTransmittance(
-	pnanovdb_vec3_t bbox_min,
-	pnanovdb_vec3_t bbox_max,
-	VdbRay Ray,
-	VdbSampler DensitySampler,
-	float3 SigmaT,
-	float4x4 LocalToWorld,
-	in out RandomSequence RandSequence,
-	FMaterialPixelParameters MaterialParameters)
-{
-	if (!CheckBounds(Ray, bbox_min - VOLUME_PADDING, bbox_max + VOLUME_PADDING))
-		return 1.0f;
-
-	float RaymarchDistance = Ray.TMax - Ray.TMin;
-	float StepSize = (LOCAL_STEP_SIZE * SHADOW_STEP_SIZE_MULT) / VOXEL_SIZE; // Index Space
-	const uint NumSteps = min(ceil(RaymarchDistance / StepSize), MAX_NUM_STEPS);
-	float StepWorldMeters = (LOCAL_STEP_SIZE * SHADOW_STEP_SIZE_MULT) * CENTIMETER_TO_METER;
-
-	FPixelMaterialInputs PixelMaterialInputs = (FPixelMaterialInputs)0;
-
-	float AccumDensity = 0.0;
-	for (uint iStep = 0; iStep < NumSteps; ++iStep)
-	{
-		float s = Ray.TMin + (iStep + lerp(0.5, RandomSequence_GenerateSample1D(RandSequence), JITTER_MULT)) * StepSize;
-		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
-
-		// Update coordinates
-		float3 WorldPos = IndexToWorldPosition(iPos, LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
-		// Update Material parameters
-		UpdateMaterialParam(MaterialParameters, WorldPos, ResolvedView);
-		// Sample material
-		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
-		// Only sample Density related attributes
-		half3 Displacement = SampleDisplacement(PixelMaterialInputs);
-		float2 DensityModifications = SampleDensityModifications(PixelMaterialInputs);
-
-		float Density = SAMPLING_FLOAT(iPos - Displacement, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
-		AccumDensity += UpdateDensity(Density, DENSITY_MULT, DensityModifications);
-	}
-	return exp(-AccumDensity * StepWorldMeters * SigmaT);
-}
+#include "/Plugin/VdbVolume/Private/VdbCommon.ush"
+#include "/Plugin/VdbVolume/Private/VdbMaterial.ush"
 
 //-----------------------------------------------------------------------------------------------------------
 // Tracing through a NanoVDB volume
@@ -187,7 +145,6 @@ float4 RaymarchFogVolume(
 		UpdateMaterialParam(MaterialParameters, WorldPos, ResolvedView);
 		// Sample material
 		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
-		// Sample Material
 		half3 EmissiveColor = SampleEmissive(PixelMaterialInputs);
 		half3 Displacement = SampleDisplacement(PixelMaterialInputs);
 		half3 SigmaT = SampleScattering(PixelMaterialInputs);
@@ -224,7 +181,6 @@ float4 RaymarchFogVolume(
 		}
 
 		float3 StepRadiance = 0.0;
-		StepRadiance += StepTransmittance * Absorption * EmissiveColor; // Emissive
 
 #if !MATERIAL_SHADINGMODEL_UNLIT
 	// I'm choosing to use Color grid as a Color tint only and not participate in scattering
@@ -234,19 +190,13 @@ float4 RaymarchFogVolume(
 		float3 Color = 1.0;
 	#endif
 
-		StepRadiance += StepTransmittance * Scattering * EnvLight * (1.0 + AMBIENT) * Color; // Ambient
-
 		// Only support single directional lighting.
 		{
-			VdbRay ShadowRay;
-			ShadowRay.Origin = iPos; // Index space
-			ShadowRay.Direction = LightDir; // Index space
-			ShadowRay.TMin = 0.0f;
-			ShadowRay.TMax = POSITIVE_INFINITY;
-
 			float3 ShadowTransmittance = GetLightTransmittance(
-				bbox_min, bbox_max, ShadowRay, 
-				DensitySampler, SigmaT, 
+				iPos, LightDir,
+				DensitySampler,
+				bbox_min, bbox_max,
+				SigmaT, SHADOW_STEP_SIZE_MULT,
 				LocalToWorld, RandSequence, MaterialParameters);
 			if (!COLORED_TRANSMITTANCE)
 			{
@@ -254,6 +204,33 @@ float4 RaymarchFogVolume(
 			}
 			StepRadiance += StepTransmittance * Scattering * LightCol * ShadowTransmittance * PhaseHG(CosThetaPhase, ANISOTROPY) * Color;
 		}
+
+	// Ambient light contribution (skylight aka environment light)
+	#if NICER_BUT_EXPENSIVE_ENVLIGHT
+		{
+			// Random sample in entire sphere direction to capture Ambient environment
+			float2 rnd = RandomSequence_GenerateSample2D(RandSequence);
+			float3 ShadowDirection = SampleHenyeyGreenstein(0.0, rnd.x, rnd.y);
+			float3 ShadowTransmittance = GetLightTransmittance(
+				iPos, ShadowDirection,
+				DensitySampler, 
+				bbox_min, bbox_max,
+				SigmaT, 2.0 * SHADOW_STEP_SIZE_MULT,
+				LocalToWorld, RandSequence, MaterialParameters);
+			if (!COLORED_TRANSMITTANCE)
+			{
+				ShadowTransmittance = Average(ShadowTransmittance);
+			}
+
+			float3 WorldDir = IndexToWorldDirection(ShadowDirection, LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
+			EnvLight = GetSkySHDiffuse(WorldDir) * View.SkyLightColor.rgb;
+
+			StepRadiance += StepTransmittance * Scattering * EnvLight * (ShadowTransmittance + AMBIENT) * Color;
+		}
+	#else
+		StepRadiance += StepTransmittance * Scattering * EnvLight * (1.0 + AMBIENT) * Color;
+	#endif
+
 #endif
 
 
@@ -265,6 +242,8 @@ float4 RaymarchFogVolume(
 		StepRadiance += StepTransmittance * Absorption * TemperatureColor;
 #endif
 
+        // Regular emissive
+		StepRadiance += StepTransmittance * Absorption * EmissiveColor;
 
 #if USE_EXTRA_VDBS
 		float FloatValue1 = SAMPLING_FLOAT(iPos, FloatSampler1.GridBuffer, FloatSampler1.GridType, FloatSampler1.Accessor);

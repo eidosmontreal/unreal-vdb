@@ -68,6 +68,10 @@ class UVdbMaterialComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes")
 	bool TemporalNoise = true;
 
+	// Enable better quality environment sampling (SkyLight) BUT with much slower performances. Recommended for offline rendering (MRQ)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (DisplayName="Improved Skylight sampling (SLOW)"))
+	bool ImprovedSkylight = false;
+
 	// Density multiplier of the volume, modulating VdbPrincipal values 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Shading", meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float DensityMultiplier = 10.0;

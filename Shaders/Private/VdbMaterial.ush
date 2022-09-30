@@ -15,8 +15,6 @@
 #ifndef D_VDB_MATERIAL_COMMON
 #define D_VDB_MATERIAL_COMMON
 
-#include "/Engine/Generated/Material.ush"
-
 void UpdateMaterialParam(
 	inout FMaterialPixelParameters MaterialParameters,
 	float3 AbsoluteWorldPosition,
@@ -75,6 +73,60 @@ float2 SampleDensityModifications(in FPixelMaterialInputs PixelMaterialInputs)
 float UpdateDensity(float Density, float DensityMult, float2 DensityModifications)
 {
 	return max(Density * DensityModifications.x, DensityModifications.y) * DensityMult;
+}
+
+// Raymarch towards light. Compute shadow transmittance
+float3 GetLightTransmittance(
+	float3 pos, // index space
+	float3 dir, // index space
+	VdbSampler Sampler,
+	float3 bbox_min,
+	float3 bbox_max,
+	float3 SigmaT,
+	float StepMultiplier,
+	float4x4 LocalToWorld,
+	in out RandomSequence RandSequence,
+	FMaterialPixelParameters MaterialParameters)
+{
+	VdbRay Ray;
+	Ray.Origin = pos;
+	Ray.Direction = dir;
+	Ray.TMin = 0.0001f; // DeltaFloat;
+	Ray.TMax = POSITIVE_INFINITY;
+
+	if (!CheckBounds(Ray, bbox_min - VOLUME_PADDING, bbox_max + VOLUME_PADDING))
+		return 1.0f;
+
+	float RaymarchDistance = Ray.TMax - Ray.TMin;
+	float StepSize = (LOCAL_STEP_SIZE * StepMultiplier) / VOXEL_SIZE; // Index Space
+	const uint NumSteps = min(ceil(RaymarchDistance / StepSize), MAX_NUM_STEPS);
+	float StepWorldMeters = (LOCAL_STEP_SIZE * StepMultiplier) * CENTIMETER_TO_METER;
+
+	FPixelMaterialInputs PixelMaterialInputs = (FPixelMaterialInputs)0;
+
+	float AccumDensity = 0.0;
+	for (uint iStep = 0; iStep < NumSteps; ++iStep)
+	{
+		float s = Ray.TMin + (iStep + lerp(0.5, RandomSequence_GenerateSample1D(RandSequence), JITTER_MULT)) * StepSize;
+		float3 iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
+
+		// Update coordinates
+		float3 WorldPos = IndexToWorldPosition(iPos, LocalToWorld, Sampler.GridBuffer, Sampler.Grid);
+		// Update Material parameters
+		UpdateMaterialParam(MaterialParameters, WorldPos, ResolvedView);
+		// Sample material
+		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
+		// Only sample Density related attributes
+		half3 Displacement = SampleDisplacement(PixelMaterialInputs);
+		float2 DensityModifications = SampleDensityModifications(PixelMaterialInputs);
+
+		float Density = ReadValue(iPos - Displacement, Sampler.GridBuffer, Sampler.GridType, Sampler.Accessor);
+		#if VDB_LEVEL_SET
+			Density = Density < 0.0 ? 1.0 : 0.0;
+		#endif
+		AccumDensity += UpdateDensity(Density, DENSITY_MULT, DensityModifications);
+	}
+	return exp(-AccumDensity * StepWorldMeters * SigmaT);
 }
 
 #endif // D_VDB_MATERIAL_COMMON
