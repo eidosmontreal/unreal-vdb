@@ -17,10 +17,8 @@
 #include "/Engine/Private/ForwardShadowingCommon.ush"
 #include "/Engine/Private/ReflectionEnvironmentShared.ush"
 #include "/Engine/Private/BRDF.ush"
-
-#include "/Plugin/VdbVolume/Private/VdbMaterial.ush"
+#include "/Engine/Generated/Material.ush"
 #include "/Engine/Generated/VertexFactory.ush"
-#include "/Plugin/VdbVolume/Private/VdbCommon.ush"
 
 int4 CustomIntData0;
 float4 CustomFloatData0;
@@ -35,6 +33,7 @@ StructuredBuffer<uint> DensityVdbBuffer;
 #define SAMPLES_PER_PIXEL uint(CustomIntData0.y)
 #define SAMPLES_PER_PIXEL_FLOAT float(CustomIntData0.y)
 #define COLORED_TRANSMITTANCE bool(CustomIntData0.z)
+#define TEMPORAL_NOISE bool(CustomIntData0.w) 
 #define LOCAL_STEP_SIZE CustomFloatData0.x
 #define SHADOW_STEP_SIZE_MULT CustomFloatData0.y
 #define VOXEL_SIZE CustomFloatData0.z
@@ -47,48 +46,8 @@ StructuredBuffer<uint> DensityVdbBuffer;
 
 #define IS_TRANSLUCENT USE_TEMPERATURE_VDB
 
-// Raymarch towards light. Compute shadow transmittance
-float3 GetLightTransmittance(
-	pnanovdb_vec3_t bbox_min,
-	pnanovdb_vec3_t bbox_max,
-	VdbRay Ray,
-	VdbSampler DensitySampler,
-	float3 SigmaT,
-	float4x4 LocalToWorld,
-	in out RandomSequence RandSequence,
-	FMaterialPixelParameters MaterialParameters)
-{
-	if (!CheckBounds(Ray, bbox_min - VOLUME_PADDING, bbox_max + VOLUME_PADDING))
-		return 1.0f;
-
-	float RaymarchDistance = Ray.TMax - Ray.TMin;
-	float StepSize = (LOCAL_STEP_SIZE * SHADOW_STEP_SIZE_MULT) / VOXEL_SIZE; // Index Space
-	const uint NumSteps = min(ceil(RaymarchDistance / StepSize), MAX_NUM_STEPS);
-	float StepWorldMeters = (LOCAL_STEP_SIZE * SHADOW_STEP_SIZE_MULT) * CENTIMETER_TO_METER;
-
-	FPixelMaterialInputs PixelMaterialInputs = (FPixelMaterialInputs)0;
-
-	float AccumDensity = 0.0;
-	for (uint iStep = 0; iStep < NumSteps; ++iStep)
-	{
-		float s = Ray.TMin + (iStep + lerp(0.5, RandomSequence_GenerateSample1D(RandSequence), JITTER_MULT)) * StepSize;
-		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
-
-		// Update coordinates
-		float3 WorldPos = IndexToWorldPosition(iPos, LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
-		// Update Material parameters
-		UpdateMaterialParam(MaterialParameters, WorldPos, ResolvedView);
-		// Sample material
-		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
-		// Only sample Density related attributes
-		half3 Displacement = SampleDisplacement(PixelMaterialInputs); 
-		float2 DensityModifications = SampleDensityModifications(PixelMaterialInputs);
-
-		float Density = ReadValue(iPos - Displacement, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor) < 0.0 ? 1.0 : 0.0;
-		AccumDensity += UpdateDensity(Density, DENSITY_MULT, DensityModifications);
-	}
-	return exp(-AccumDensity * StepWorldMeters * SigmaT);
-}
+#include "/Plugin/VdbVolume/Private/VdbCommon.ush"
+#include "/Plugin/VdbVolume/Private/VdbMaterial.ush"
 
 float4 RaymarchLevelSet(
 	VdbSampler VdbSampler,
@@ -117,7 +76,7 @@ float4 RaymarchLevelSet(
 	float3 LightCol = View.DirectionalLightColor.rgb;
 	float CosThetaPhase = dot(LightDir, Ray.Direction);
 
-	float3 EnvLight = GetSkySHDiffuseSimple(float3(0.0f, 0.0f, 0.0f)); // without SH directionality
+	float3 EnvLight = GetSkySHDiffuseSimple(float3(0.0f, 0.0f, 0.0f)) * View.SkyLightColor.rgb; // without SH directionality
 #endif
 
 	FPixelMaterialInputs PixelMaterialInputs = (FPixelMaterialInputs)0;
@@ -147,7 +106,6 @@ float4 RaymarchLevelSet(
 		UpdateMaterialParam(MaterialParameters, WorldPos, ResolvedView);
 		// Sample material
 		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
-		// Sample Material
 		half3 EmissiveColor = SampleEmissive(PixelMaterialInputs);
 		half3 Displacement = SampleDisplacement(PixelMaterialInputs);
 		half3 SigmaT = SampleScattering(PixelMaterialInputs);
@@ -184,30 +142,51 @@ float4 RaymarchLevelSet(
 			StepTransmittance = Average(StepTransmittance);
 		}
 
-		Radiance += StepTransmittance * Absorption * EmissiveColor; // Emissive
-
 #if !MATERIAL_SHADINGMODEL_UNLIT
-		Radiance += StepTransmittance * Scattering * (EnvLight + LightCol * AMBIENT); // Ambient
-
 		// Only support single directional lighting.
 		{
-			VdbRay ShadowRay;
-			ShadowRay.Origin = iPos; // Index space
-			ShadowRay.Direction = LightDir; // Index space
-			ShadowRay.TMin = 0.0f;
-			ShadowRay.TMax = POSITIVE_INFINITY;
-
 			float3 LightTransmittance = GetLightTransmittance(
-				bbox_min, bbox_max, ShadowRay,
-				VdbSampler, SigmaT,
+				iPos, LightDir,
+				VdbSampler,
+				bbox_min, bbox_max,
+				SigmaT, SHADOW_STEP_SIZE_MULT,
 				LocalToWorld, RandSequence, MaterialParameters);
 			if (!COLORED_TRANSMITTANCE)
 			{
 				LightTransmittance = Average(LightTransmittance);
 			}
-			Radiance += StepTransmittance * Scattering * LightTransmittance * LightCol * PhaseHG(CosThetaPhase, ANISOTROPY);
+			Radiance += StepTransmittance * Scattering * LightCol * LightTransmittance * PhaseHG(CosThetaPhase, ANISOTROPY);
 		}
+
+		// Ambient light contribution (skylight aka environment light)
+		#if NICER_BUT_EXPENSIVE_ENVLIGHT
+			{
+				// Random sample in entire sphere direction to capture Ambient environment
+				float2 rnd = RandomSequence_GenerateSample2D(RandSequence);
+				float3 ShadowDirection = SampleHenyeyGreenstein(0.0, rnd.x, rnd.y);
+				float3 ShadowTransmittance = GetLightTransmittance(
+					iPos, ShadowDirection,
+					VdbSampler,
+					bbox_min, bbox_max,
+					SigmaT, 2.0 * SHADOW_STEP_SIZE_MULT,
+					LocalToWorld, RandSequence, MaterialParameters);
+				if (!COLORED_TRANSMITTANCE)
+				{
+					ShadowTransmittance = Average(ShadowTransmittance);
+				}
+
+				float3 WorldDir = IndexToWorldDirection(ShadowDirection, LocalToWorld, VdbSampler.GridBuffer, VdbSampler.Grid);
+				EnvLight = GetSkySHDiffuse(WorldDir) * View.SkyLightColor.rgb;
+
+				Radiance += StepTransmittance * Scattering * EnvLight * (ShadowTransmittance + AMBIENT);
+			}
+		#else
+			Radiance += StepTransmittance * Scattering * EnvLight * (1.0 + AMBIENT);
 #endif
+#endif
+
+		// Regular Emissive
+		Radiance += StepTransmittance * Absorption * EmissiveColor;
 
 		// Update Transmittance
 		Transmittance *= exp(-StepWorldMeters * Extinction);
@@ -348,9 +327,20 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 	for (uint SampleIndex = 0; SampleIndex < SAMPLES_PER_PIXEL; ++SampleIndex)
 	{
 		RandomSequence RandSequence;
-		RandomSequence_Initialize(RandSequence, LinearIndex, SampleIndex);
+		float2 Jitter = 0.0;
 
-		float2 Jitter = (SampleIndex > 0) ? RandomSequence_GenerateSample2D(RandSequence) - 0.5 : 0.0;
+		if (TEMPORAL_NOISE)
+		{
+			// Different seed per frame (StateFrameIndex) and even per sub-frame (Random) for inter-frame movie render queue AA
+			RandomSequence_Initialize(RandSequence, SvPosition.xy, SampleIndex, ResolvedView.StateFrameIndex + ResolvedView.Random, SAMPLES_PER_PIXEL);
+			Jitter = RandomSequence_GenerateSample2D(RandSequence) - 0.5;
+		}
+		else
+		{
+		RandomSequence_Initialize(RandSequence, LinearIndex, SampleIndex);
+			Jitter = (SampleIndex > 0) ? RandomSequence_GenerateSample2D(RandSequence) - 0.5 : 0.0;
+		}
+
 		VdbRay iRay = PrepareRayFromPixel(VdbSampler.GridBuffer, VdbSampler.Grid, SvPosition.xy, ResolvedView.BufferSizeAndInvSize.xy, Jitter, DeviceZ, WorldToLocal); // index/vdb space
 		
 		Radiance += RaymarchLevelSet(

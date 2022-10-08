@@ -47,6 +47,7 @@ struct FVdbPrincipledParams
 	float Temperature;
 	float UseDirectionalLight;
 	float UseEnvironmentLight;
+	float Ambient;
 };
 
 // Render Thread equivalent of VdbPrincipledComponent

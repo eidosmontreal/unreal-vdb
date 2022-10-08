@@ -147,11 +147,6 @@ FVector3f UVdbAssetComponent::GetVolumeUvScale() const
 			if (CheckVector) { UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbAssetComponent: %s only accepts vector volumes."), TEXT(#MemberName)); } \
 			else { UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbAssetComponent: %s only accepts float volumes."), TEXT(#MemberName)); } \
 		} \
-		if (MemberName && DensityVolume && DensityVolume->GetLargestVolume() != MemberName->GetLargestVolume()) \
-		{ \
-			MemberName = nullptr; \
-			UE_LOG(LogSparseVolumetrics, Error, TEXT("UVdbAssetComponent: %s must have same dimensions as the principal Density volume \"%s\"."), TEXT(#MemberName), *DensityVolume->GetName()); \
-		} \
 	}
 
 void UVdbAssetComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -169,23 +164,6 @@ void UVdbAssetComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 	CHECK_VOLUMES_POST_EDIT(VectorVolume2, true);
 	CHECK_VOLUMES_POST_EDIT(VectorVolume3, true);
 	CHECK_VOLUMES_POST_EDIT(VectorVolume4, true);
-
-	if (DensityVolume)
-	{
-		// All VDB grids in a same Vdb Actor should match exactly.
-		// The principal (and mandatory) Density volume drives all the others. If there is a mismatch 
-		// between the Density volume and any other, reset the secondary volumes to avoid any potential GPU crash.
-		if (TemperatureVolume && DensityVolume->GetLargestVolume() != TemperatureVolume->GetLargestVolume()) TemperatureVolume = nullptr;
-		if (ColorVolume && DensityVolume->GetLargestVolume() != ColorVolume->GetLargestVolume()) ColorVolume = nullptr;
-		if (FloatVolume1 && DensityVolume->GetLargestVolume() != FloatVolume1->GetLargestVolume()) FloatVolume1 = nullptr;
-		if (FloatVolume2 && DensityVolume->GetLargestVolume() != FloatVolume2->GetLargestVolume()) FloatVolume2 = nullptr;
-		if (FloatVolume3 && DensityVolume->GetLargestVolume() != FloatVolume3->GetLargestVolume()) FloatVolume3 = nullptr;
-		if (FloatVolume4 && DensityVolume->GetLargestVolume() != FloatVolume4->GetLargestVolume()) FloatVolume4 = nullptr;
-		if (VectorVolume1 && DensityVolume->GetLargestVolume() != VectorVolume1->GetLargestVolume()) VectorVolume1 = nullptr;
-		if (VectorVolume2 && DensityVolume->GetLargestVolume() != VectorVolume2->GetLargestVolume()) VectorVolume2 = nullptr;
-		if (VectorVolume3 && DensityVolume->GetLargestVolume() != VectorVolume3->GetLargestVolume()) VectorVolume3 = nullptr;
-		if (VectorVolume4 && DensityVolume->GetLargestVolume() != VectorVolume4->GetLargestVolume()) VectorVolume4 = nullptr;
-	}
 
 	return Super::PostEditChangeProperty(PropertyChangedEvent);
 }

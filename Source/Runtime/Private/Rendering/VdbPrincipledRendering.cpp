@@ -209,6 +209,7 @@ TRDGUniformBufferRef<FVdbPrincipledShaderParams> CreateVdbUniformBuffer(FRDGBuil
 	UniformParameters->Color = LinearColorToVector(Params.Color);
 	UniformParameters->DensityMult = Params.DensityMult;
 	UniformParameters->Albedo = Params.Albedo;
+	UniformParameters->Ambient = Params.Ambient;
 	UniformParameters->Anisotropy = Params.Anisotropy;
 	UniformParameters->EmissionColor = LinearColorToVector(Params.EmissionColor);
 	UniformParameters->EmissionStrength = Params.EmissionStrength;

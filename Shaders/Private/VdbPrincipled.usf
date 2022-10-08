@@ -64,22 +64,6 @@ float3 UserDefinedEquation(
 	//return PhysicallyBasedRadiance * CustomVdb5 + CustomVdb1 + CustomVdb2 + CustomVdb6.y;
 }
 	 
-// Phase function.
-pnanovdb_vec3_t SampleHenyeyGreenstein(float g, float e1, float e2)
-{
-	float cosTheta = 1.0f - 2.0f * e2; // isotropic
-
-	if (abs(g) >= 0.001)  // anisotropic
-	{
-		float sqrTerm = (1.0 - g * g) / (1.0 - g + 2.0 * g * e1);
-		cosTheta = (1.0 + g * g - sqrTerm * sqrTerm) / (2.0 * g);
-	}
-
-	float sinTheta = sqrt(max(0.000001, 1.0f - cosTheta * cosTheta));
-	float phi = (2.0f * PI) * e1;
-	return pnanovdb_vec3_t(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
-}
-
 float3 GetShadowTransmittance(
 	VdbSampler DensitySampler,
 	pnanovdb_vec3_t bbox_min,
@@ -103,7 +87,7 @@ float3 GetShadowTransmittance(
 	float RaymarchDistance = ShadowRay.TMax - ShadowRay.TMin; // Index space
 	float StepSize = VdbPrincipledParams.StepSize * StepMultiplier / VdbPrincipledParams.VoxelSize; // Index space
 	const uint NumSteps = min(ceil(RaymarchDistance / StepSize), VdbPrincipledParams.MaxRayDepth);
-	float StepWorldMeters = StepSize * CENTIMETER_TO_METER;
+	float StepWorldMeters = VdbPrincipledParams.StepSize * StepMultiplier * CENTIMETER_TO_METER;
 
 	float AccumDensity = 0.0;
 	for (uint iStep = 0; iStep < NumSteps; ++iStep)
@@ -111,10 +95,9 @@ float3 GetShadowTransmittance(
 		float s = ShadowRay.TMin + (iStep + RandomSequence_GenerateSample1D(RandSequence)) * StepSize;
 		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(ShadowRay.Origin, s, ShadowRay.Direction);
 
-#if LEVEL_SET
-		float Density = SAMPLING_FLOAT(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor) < 0.0 ? 1.0 : 0.0;
-#else
 		float Density = SAMPLING_FLOAT(iPos, DensitySampler.GridBuffer, DensitySampler.GridType, DensitySampler.Accessor);
+#if LEVEL_SET
+		Density = Density < 0.0 ? 1.0 : 0.0;
 #endif
 		AccumDensity += Density * Medium.densityScale;
 	}
@@ -144,9 +127,7 @@ float4 RaymarchVolume(
 	pnanovdb_vec3_t bbox_max,
 	VdbRay Ray,
 	HeterogenousMedium Medium,
-	in out RandomSequence RandSequence,
-	pnanovdb_vec3_t lightDir,
-	pnanovdb_vec3_t lightCol)
+	in out RandomSequence RandSequence)
 {
 	if (!CheckBounds(Ray, bbox_min, bbox_max))
 	{
@@ -188,7 +169,7 @@ float4 RaymarchVolume(
 	float StepSize = VdbPrincipledParams.StepSize / VdbPrincipledParams.VoxelSize; // Index space
 	float RaymarchDistance = Ray.TMax - StartDistance; // Index space
 	const uint NumSteps = min(ceil(RaymarchDistance / StepSize), VdbPrincipledParams.MaxRayDepth);
-	float StepWorldMeters = StepSize * CENTIMETER_TO_METER;
+	float StepWorldMeters = VdbPrincipledParams.StepSize * CENTIMETER_TO_METER;
 
 	for (uint iStep = 0; iStep < NumSteps; ++iStep)
 	{
@@ -213,6 +194,7 @@ float4 RaymarchVolume(
 		float3 Absorption = Extinction - Scattering;
 
 #ifdef ANALYTIC_INTEGRATION
+		Extinction = max(Extinction, 0.00000001);
 		float3 TransmittanceIntegral = (1.0 - exp(-StepWorldMeters * Extinction)) / Extinction;
 		float3 StepTransmittance = Transmittance * TransmittanceIntegral;
 #else
@@ -256,9 +238,9 @@ float4 RaymarchVolume(
 			}
 			
 			float3 WorldDir = IndexToWorldDirection(ShadowDirection, VdbPrincipledParams.LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
-			float3 IncomingRadiance = GetSkySHDiffuse(WorldDir) * View.SkyLightColor.rgb;
+			float3 EnvLight = GetSkySHDiffuse(WorldDir) * View.SkyLightColor.rgb;
 
-			StepRadiance += StepTransmittance * Scattering * IncomingRadiance * ShadowTransmittance * Color;
+			StepRadiance += StepTransmittance * Scattering * EnvLight * (ShadowTransmittance + VdbPrincipledParams.Ambient) * Color;
 		}
 
 #if USE_TEMPERATURE_VDB
@@ -327,15 +309,11 @@ float4 VdbFogVolume(uint2 LaunchIndex)
 	VdbSampler VectorSampler4 = InitVdbSampler(VdbPrincipledParams.ExtraVdbVectorBuffer4);
 #endif
 
-	pnanovdb_buf_t root_buf = VdbPrincipledParams.VdbDensity;
-	pnanovdb_tree_handle_t tree = pnanovdb_grid_get_tree(DensitySampler.GridBuffer, DensitySampler.Grid);
-	pnanovdb_root_handle_t root = pnanovdb_tree_get_root(DensitySampler.GridBuffer, tree);
-
 	// Global values (could be computed on CPU, and passed to shader instead)
-	float root_min_val = pnanovdb_read_float(DensitySampler.GridBuffer, pnanovdb_root_get_min_address(DensitySampler.GridType, DensitySampler.GridBuffer, root));
-	float root_max_val = pnanovdb_read_float(DensitySampler.GridBuffer, pnanovdb_root_get_max_address(DensitySampler.GridType, DensitySampler.GridBuffer, root));
-	pnanovdb_vec3_t bbox_min = pnanovdb_coord_to_vec3(pnanovdb_root_get_bbox_min(DensitySampler.GridBuffer, root));
-	pnanovdb_vec3_t bbox_max = pnanovdb_coord_to_vec3(pnanovdb_root_get_bbox_max(DensitySampler.GridBuffer, root));
+	float root_min_val = pnanovdb_read_float(DensitySampler.GridBuffer, pnanovdb_root_get_min_address(DensitySampler.GridType, DensitySampler.GridBuffer, DensitySampler.Root));
+	float root_max_val = pnanovdb_read_float(DensitySampler.GridBuffer, pnanovdb_root_get_max_address(DensitySampler.GridType, DensitySampler.GridBuffer, DensitySampler.Root));
+	pnanovdb_vec3_t bbox_min = pnanovdb_coord_to_vec3(pnanovdb_root_get_bbox_min(DensitySampler.GridBuffer, DensitySampler.Root));
+	pnanovdb_vec3_t bbox_max = pnanovdb_coord_to_vec3(pnanovdb_root_get_bbox_max(DensitySampler.GridBuffer, DensitySampler.Root));
 
 	// ------------------------------------------------------------------------------------------------------
 	// Prepare variables
@@ -397,9 +375,7 @@ float4 VdbFogVolume(uint2 LaunchIndex)
 									bbox_max, 
 									Ray, 
 									Medium, 
-									RandSequence, 
-									View.DirectionalLightDirection.xyz, 
-									View.DirectionalLightColor.rgb);
+									RandSequence);
 	}
 
 	Radiance /= VdbPrincipledParams.SamplesPerPixel;

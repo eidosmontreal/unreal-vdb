@@ -88,6 +88,10 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "1.0"))
 	float Albedo = 0.8;
 
+	// Ambient contribution to be added to light scattering, usually needed to cheaply boost volume radiance
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (UIMin = "0.0"))
+	float Ambient = 0.0;
+
 	// Backward or forward scattering direction (aka directional bias).
 	// The default value of zero gives isotropic scattering so that light is scattered evenly in all directions. 
 	// Positive values bias the scattering effect forwards, in the direction of the light, while negative values bias the scattering backward, toward the light. 

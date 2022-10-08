@@ -45,6 +45,7 @@ FVdbPrincipledSceneProxy::FVdbPrincipledSceneProxy(const UVdbAssetComponent* Ass
 	Params.Color = InComponent->Color;
 	Params.DensityMult = InComponent->DensityMultiplier;
 	Params.Albedo = InComponent->Albedo;
+	Params.Ambient = InComponent->Ambient;
 	Params.Anisotropy = InComponent->Anisotropy;
 	Params.EmissionStrength = InComponent->EmissionStrength;
 	Params.EmissionColor = InComponent->EmissionColor;

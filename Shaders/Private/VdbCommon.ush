@@ -437,4 +437,20 @@ float Average(float3 Value)
 	return dot(Value, 1.0/3.0);
 }
 
+// Phase function.
+pnanovdb_vec3_t SampleHenyeyGreenstein(float g, float e1, float e2)
+{
+	float cosTheta = 1.0f - 2.0f * e2; // isotropic
+
+	if (abs(g) >= 0.001)  // anisotropic
+	{
+		float sqrTerm = (1.0 - g * g) / (1.0 - g + 2.0 * g * e1);
+		cosTheta = (1.0 + g * g - sqrTerm * sqrTerm) / (2.0 * g);
+	}
+
+	float sinTheta = sqrt(max(0.000001, 1.0f - cosTheta * cosTheta));
+	float phi = (2.0f * PI) * e1;
+	return pnanovdb_vec3_t(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+}
+
 #endif // D_VDB_VOLUMETRIC_COMMON
