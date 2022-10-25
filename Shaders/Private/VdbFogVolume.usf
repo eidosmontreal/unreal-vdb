@@ -141,10 +141,14 @@ float4 RaymarchFogVolume(
 
 		// Update coordinates
 		float3 WorldPos = IndexToWorldPosition(iPos, LocalToWorld, DensitySampler.GridBuffer, DensitySampler.Grid);
-		// Update Material parameters
-		UpdateMaterialParam(MaterialParameters, WorldPos, ResolvedView);
-		// Sample material
-		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
+		float3 TranslatedWorldPos = LWCToFloat(LWCAdd(WorldPos, PrimaryView.PreViewTranslation));
+
+		CalcMaterialParametersEx(
+			MaterialParameters, PixelMaterialInputs,
+			SvPosition, SvPositionToScreenPosition(SvPosition),
+			true,
+			TranslatedWorldPos, TranslatedWorldPos);
+
 		half3 EmissiveColor = SampleEmissive(PixelMaterialInputs);
 		half3 Displacement = SampleDisplacement(PixelMaterialInputs);
 		half3 SigmaT = SampleScattering(PixelMaterialInputs);

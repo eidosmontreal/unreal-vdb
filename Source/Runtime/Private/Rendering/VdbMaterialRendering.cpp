@@ -89,7 +89,7 @@ public:
 		if (Material && Material->GetMaterialDomain() == MD_Volume && Material->GetRenderingThreadShaderMap())
 		{
 			const ERasterizerFillMode MeshFillMode = FM_Solid;
-			const ERasterizerCullMode MeshCullMode = CM_None;
+			const ERasterizerCullMode MeshCullMode = CM_CCW;
 			if (bLevelSet)
 			{
 				if (bTranslucentLevelSet && bImprovedSkylight)
