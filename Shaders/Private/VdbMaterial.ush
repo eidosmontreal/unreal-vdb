@@ -15,18 +15,6 @@
 #ifndef D_VDB_MATERIAL_COMMON
 #define D_VDB_MATERIAL_COMMON
 
-void UpdateMaterialParam(
-	inout FMaterialPixelParameters MaterialParameters,
-	float3 AbsoluteWorldPosition,
-	in ViewState InputView)
-{
-	MaterialParameters.AbsoluteWorldPosition = LWCPromote(AbsoluteWorldPosition);
-	MaterialParameters.WorldPosition_CamRelative = LWCToFloat(LWCAdd(MaterialParameters.AbsoluteWorldPosition, InputView.PreViewTranslation));
-	//MaterialParameters.WorldPosition_NoOffsets;				// TODO
-	//MaterialParameters.WorldPosition_NoOffsets_CamRelative;	// TODO
-	MaterialParameters.CameraVector = normalize(LWCToFloat(LWCSubtract(InputView.WorldCameraOrigin, MaterialParameters.AbsoluteWorldPosition)));
-}
-
 half3 SampleDisplacement(in FPixelMaterialInputs PixelMaterialInputs)
 {
 	// w value is not set. don't try to use it
@@ -112,10 +100,18 @@ float3 GetLightTransmittance(
 
 		// Update coordinates
 		float3 WorldPos = IndexToWorldPosition(iPos, LocalToWorld, Sampler.GridBuffer, Sampler.Grid);
-		// Update Material parameters
-		UpdateMaterialParam(MaterialParameters, WorldPos, ResolvedView);
-		// Sample material
-		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
+		float3 TranslatedWorldPos = LWCToFloat(LWCAdd(WorldPos, PrimaryView.PreViewTranslation));
+
+		float4 ClipPos = mul(float4(TranslatedWorldPos, 1.0), PrimaryView.TranslatedWorldToClip);
+		float4 SvPosition = ClipPos / ClipPos.w;
+		SvPosition.xy = (0.5 * SvPosition.xy + 0.5) * PrimaryView.BufferSizeAndInvSize.xy;
+
+		CalcMaterialParametersEx(
+			MaterialParameters, PixelMaterialInputs,
+			SvPosition, SvPositionToScreenPosition(SvPosition),
+			true,
+			TranslatedWorldPos, TranslatedWorldPos);
+
 		// Only sample Density related attributes
 		half3 Displacement = SampleDisplacement(PixelMaterialInputs);
 		float2 DensityModifications = SampleDensityModifications(PixelMaterialInputs);

@@ -56,6 +56,7 @@ float4 RaymarchLevelSet(
 	VdbRay Ray,
 	float4x4 LocalToWorld,
 	float4x4 WorldToLocal,
+	float4 SvPosition,
 	in out RandomSequence RandSequence,
 	FMaterialPixelParameters MaterialParameters)
 {
@@ -102,10 +103,14 @@ float4 RaymarchLevelSet(
 
 		// Update coordinates
 		float3 WorldPos = IndexToWorldPosition(iPos, LocalToWorld, VdbSampler.GridBuffer, VdbSampler.Grid);
-		// Update Material parameters
-		UpdateMaterialParam(MaterialParameters, WorldPos, ResolvedView);
-		// Sample material
-		CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);
+		float3 TranslatedWorldPos = LWCToFloat(LWCAdd(WorldPos, PrimaryView.PreViewTranslation));
+
+		CalcMaterialParametersEx(
+			MaterialParameters, PixelMaterialInputs,
+			SvPosition, SvPositionToScreenPosition(SvPosition),
+			true,
+			TranslatedWorldPos,TranslatedWorldPos);
+	
 		half3 EmissiveColor = SampleEmissive(PixelMaterialInputs);
 		half3 Displacement = SampleDisplacement(PixelMaterialInputs);
 		half3 SigmaT = SampleScattering(PixelMaterialInputs);
@@ -182,7 +187,7 @@ float4 RaymarchLevelSet(
 			}
 		#else
 			Radiance += StepTransmittance * Scattering * EnvLight * (1.0 + AMBIENT);
-#endif
+		#endif
 #endif
 
 		// Regular Emissive
@@ -337,7 +342,7 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 		}
 		else
 		{
-		RandomSequence_Initialize(RandSequence, LinearIndex, SampleIndex);
+			RandomSequence_Initialize(RandSequence, LinearIndex, SampleIndex);
 			Jitter = (SampleIndex > 0) ? RandomSequence_GenerateSample2D(RandSequence) - 0.5 : 0.0;
 		}
 
@@ -348,6 +353,7 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 			bbox_min, bbox_max, 
 			iRay,
 			LocalToWorld, WorldToLocal, 
+			SvPosition,
 			RandSequence,
 			MaterialParameters);
 	}

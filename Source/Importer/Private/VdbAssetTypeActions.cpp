@@ -58,7 +58,7 @@ void FVdbAssetTypeActions::GetActions(const TArray<UObject*>& InObjects, FToolMe
 		"VdbVolume_CreateVolumeTexture",
 		LOCTEXT("VdbVolume_CreateVolumeTexture", "Create Volume Texture"),
 		LOCTEXT("VdbVolume_CreateVolumeTextureTooltip", "Creates a Volume texture and copies content from Vdb Volume."),
-		FSlateIcon(FEditorStyle::GetStyleSetName(), "ClassIcon.Texture2D"),
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Texture2D"),
 		FUIAction(
 			FExecuteAction::CreateSP(this, &FVdbAssetTypeActions::ExecuteConvertToVolume, VdbVolumes),
 			FCanExecuteAction()
