@@ -1,6 +1,6 @@
 # Basic instructions
 The two most important parameters to correctly setup your VDBs in Unreal are **Local step size** and **Density** 
-(aka ensity multiplier). Once you get good results these two parameters, use the other parameters to tweak your 
+(aka density multiplier). Once you get good results these two parameters, use the other parameters to tweak your 
 rendering.
 
 Depending on your volume, **Local step size** usually have values from 0.005 to 10. Smaller raymarching steps values 
