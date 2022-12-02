@@ -79,6 +79,12 @@ but VdbMaterial use Unreal materials, allowing custom user controlled rendering,
 
 For now only VdbPrincipled are pathtracer compatible but that will probably change very soon.
 
+* What are the translucency issues with VDB and are there ways to overcome them?
+
+Current translucency sorting issues:
+1) VDB can be seen through volume material ([#39](https://github.com/eidosmontreal/unreal-vdb/issues/39) - can be solved my using Unreal default Volumetric Clouds and rendering VDB to volume texture by VdbToVolumeTextureActor ([#48](https://github.com/eidosmontreal/unreal-vdb/issues/48)), see BP_VdbToVolumetricClouds from plugin example level for a reference);
+2) translucent material can be seen through VDB ([#39](https://github.com/eidosmontreal/unreal-vdb/issues/39) - problems with groom and translucent stays if you use Volumetric Clouds);
+3) groom can be seen through VDB ([#32](https://github.com/eidosmontreal/unreal-vdb/issues/32) - can be partially solved by changing the code and recompiling the plugin).
 
 # Pro tips
 
