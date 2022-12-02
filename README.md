@@ -119,6 +119,8 @@ Double click on `VdbVolume` assets to check their properties.
 
 ![VdbActor](Resources/open_properties.gif)
 
+We have [HELPME.md](/HELPME.md) section that can help solve common problems, make sure to check it out.
+
 ### Quantization
 
 NanoVDB allows compressing your data to be more lightweight. 
@@ -287,8 +289,8 @@ You can also pack up to two different `VdbVolumes` into a single render target, 
 
 This is an experimental plugin. Customizing Unreal's renderer proved to be challenging, so be aware that there are 
 probably a lot of features that don't work out-of-the box. Most Unreal pipeline features will probably not work 
-(debug buffers, global overrides, shadows, transparency orders etc.). Some may be easy to fix/implement while 
-others aren't possible yet without modifying the renderer's code. 
+(debug buffers, global overrides, shadows, transparency orders including groom etc.). Some may be easy to fix/implement while 
+others aren't possible yet without modifying the renderer's code. You can learn more on current issues in [HELPME.md](/HELPME.md)
  
 Regarding VDB features:
 * We only support *FogVolumes* and *LevelSets* (aka *Distance Fields*)
