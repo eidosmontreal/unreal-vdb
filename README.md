@@ -87,7 +87,11 @@ The plugin now comes with example levels (e.g `LVL_VDB_Gallery`), showing a vari
 You can download the zipped versions with data in [Releases](https://github.com/eidosmontreal/unreal-vdb/releases). 
 
 ---
+
+Please note that we also have a [HELPME.md](/HELPME.md) section that can help solve common problems or answer frequently asked questions.
+
 ## First steps
+
 
 Create or get an OpenVDB file, for example 
 [bunny.vdb](https://artifacts.aswf.io/io/aswf/openvdb/models/bunny.vdb/1.0.0/bunny.vdb-1.0.0.zip) from the 
@@ -287,8 +291,10 @@ You can also pack up to two different `VdbVolumes` into a single render target, 
 
 This is an experimental plugin. Customizing Unreal's renderer proved to be challenging, so be aware that there are 
 probably a lot of features that don't work out-of-the box. Most Unreal pipeline features will probably not work 
-(debug buffers, global overrides, shadows, transparency orders etc.). Some may be easy to fix/implement while 
+(debug buffers, global overrides, shadows, transparency orders, issues with hair strands etc.). Some may be easy to fix/implement while 
 others aren't possible yet without modifying the renderer's code. 
+
+Please check the [HELPME.md](/HELPME.md) page to maybe find solutions to some frequently asked questions.
  
 Regarding VDB features:
 * We only support *FogVolumes* and *LevelSets* (aka *Distance Fields*)
