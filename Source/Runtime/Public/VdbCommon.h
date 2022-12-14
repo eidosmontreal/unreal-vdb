@@ -16,6 +16,7 @@
 
 #include "CoreMinimal.h"
 #include "Stats/Stats.h"
+#include "HAL/ConsoleManager.h"
 
 THIRD_PARTY_INCLUDES_START
 #include <nanovdb/NanoVDB.h>
@@ -37,6 +38,15 @@ DECLARE_CYCLE_STAT(TEXT("RT Opaque"), STAT_VdbOpaque_RT, STATGROUP_VdbOverview);
 DECLARE_CYCLE_STAT(TEXT("RT Translucent"), STAT_VdbTranslucent_RT, STATGROUP_VdbOverview);
 DECLARE_CYCLE_STAT(TEXT("RT Principled"), STAT_VdbPrincipled_RT, STATGROUP_VdbOverview);
 DECLARE_CYCLE_STAT(TEXT("RT GetDynMeshElements"), STAT_VdbSceneProxy_GetDynamicMeshElements, STATGROUP_VdbOverview);
+
+struct FVdbCVars
+{
+	static TAutoConsoleVariable<bool> CVarVolumetricVdb;
+	static TAutoConsoleVariable<bool> CVarVolumetricVdbTrilinear;
+	static TAutoConsoleVariable<int32> CVarVolumetricVdbCinematicQuality;
+	static TAutoConsoleVariable<int32> CVarVolumetricVdbDenoiser;
+	static TAutoConsoleVariable<float> CVarVolumetricVdbThreshold;
+};
 
 class FVdbRenderBuffer;
 

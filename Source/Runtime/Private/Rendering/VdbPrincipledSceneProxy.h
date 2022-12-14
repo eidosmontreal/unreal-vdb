@@ -26,7 +26,6 @@ struct FVdbPrincipledParams
 	FVdbRenderBuffer* VdbDensity;
 	FVdbRenderBuffer* VdbTemperature;
 	FVdbRenderBuffer* VdbColor;
-	TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS> ExtraVdbs;
 	FVector3f IndexMin;
 	uint32 ColoredTransmittance;
 	uint32 TemporalNoise;
@@ -63,14 +62,12 @@ public:
 	bool GetDisplayBounds() const { return DisplayBounds; }
 	bool UseTrilinearInterpolation() const { return TrilinearInterpolation; }
 	bool IsLevelSet() const { return LevelSet; }
-	bool UseExtraRenderResources() const;
 
 	FRDGTextureRef GetOrCreateRenderTarget(FRDGBuilder& GraphBuilder, const FIntPoint& RtSize, bool EvenFrame);
 
 	void ResetVisibility() { VisibleViews.Empty(4); }
 	bool IsVisible(const FSceneView* View) const { return VisibleViews.Find(View) != INDEX_NONE; }
 	void Update(const FMatrix44f& InIndexToLocal, const FVector3f& InIndexMin, const FVector3f& InIndexSize, FVdbRenderBuffer* DensityBuffer, FVdbRenderBuffer* TemperatureBuffer, FVdbRenderBuffer* ColorBuffer);
-	void UpdateExtraBuffers(const TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS>& RenderBuffers);
 
 protected:
 	//~ Begin FPrimitiveSceneProxy Interface

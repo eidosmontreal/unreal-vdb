@@ -156,14 +156,6 @@ void UVdbAssetComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 	CHECK_VOLUMES_POST_EDIT(DensityVolume, false);
 	CHECK_VOLUMES_POST_EDIT(TemperatureVolume, false);
 	CHECK_VOLUMES_POST_EDIT(ColorVolume, true);
-	CHECK_VOLUMES_POST_EDIT(FloatVolume1, false);
-	CHECK_VOLUMES_POST_EDIT(FloatVolume2, false);
-	CHECK_VOLUMES_POST_EDIT(FloatVolume3, false);
-	CHECK_VOLUMES_POST_EDIT(FloatVolume4, false);
-	CHECK_VOLUMES_POST_EDIT(VectorVolume1, true);
-	CHECK_VOLUMES_POST_EDIT(VectorVolume2, true);
-	CHECK_VOLUMES_POST_EDIT(VectorVolume3, true);
-	CHECK_VOLUMES_POST_EDIT(VectorVolume4, true);
 
 	return Super::PostEditChangeProperty(PropertyChangedEvent);
 }

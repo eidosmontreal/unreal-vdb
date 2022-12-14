@@ -40,17 +40,15 @@ public:
 	const FVdbRenderBuffer* GetDensityRenderResource() const { return DensityRenderBuffer; }
 	const FVdbRenderBuffer* GetTemperatureRenderResource() const { return TemperatureRenderBuffer; }
 	const FVdbRenderBuffer* GetColorRenderResource() const { return ColorRenderBuffer; }
-	const TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS>& GetExtraRenderResources() const { return ExtraRenderBuffers; }
-	bool UseExtraRenderResources() const;
 	
 	bool IsLevelSet() const { return LevelSet; }
 	bool IsTranslucentLevelSet() const { return LevelSet && TranslucentLevelSet; }
 	bool IsTranslucent() const { return !LevelSet || TranslucentLevelSet; }
 	bool UseImprovedSkylight() const { return ImprovedSkylight; }
+	bool UseTrilinearSampling() const { return TrilinearSampling; }
 	void ResetVisibility() { VisibleViews.Empty(4); }
 	bool IsVisible(const FSceneView* View) const { return VisibleViews.Find(View) != INDEX_NONE; }
 	void Update(const FMatrix44f& IndexToLocal, const FVector3f& IndexMin, const FVector3f& IndexSize, FVdbRenderBuffer* DensityRenderBuffer, FVdbRenderBuffer* TemperatureRenderBuffer, FVdbRenderBuffer* ColorRenderBuffer);
-	void UpdateExtraBuffers(const TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS>& RenderBuffers);
 
 protected:
 	//~ Begin FPrimitiveSceneProxy Interface
@@ -72,6 +70,7 @@ private:
 	bool LevelSet;
 	bool TranslucentLevelSet;
 	bool ImprovedSkylight;
+	bool TrilinearSampling;
 
 	FIntVector4 CustomIntData0;
 	FVector4f CustomFloatData0;
@@ -84,9 +83,6 @@ private:
 	FVector3f IndexMin;
 	FVector3f IndexSize;
 	FMatrix44f IndexToLocal;
-
-	// extra non-realtime data
-	TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS> ExtraRenderBuffers;
 
 	mutable TArray<const FSceneView*> VisibleViews;
 };

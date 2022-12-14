@@ -27,18 +27,6 @@ StructuredBuffer<uint>	DensityVdbBuffer;
 StructuredBuffer<uint>	TemperatureVdbBuffer;
 StructuredBuffer<uint>	ColorVdbBuffer;
 
-// #if USE_EXTRA_VDBS
-// Non-realtime extra VDB buffers. Don't use them if you expect good performances.
-StructuredBuffer<uint>	ExtraVdbFloatBuffer1;
-StructuredBuffer<uint>	ExtraVdbFloatBuffer2;
-StructuredBuffer<uint>	ExtraVdbFloatBuffer3;
-StructuredBuffer<uint>	ExtraVdbFloatBuffer4;
-StructuredBuffer<uint>	ExtraVdbVectorBuffer1;
-StructuredBuffer<uint>	ExtraVdbVectorBuffer2;
-StructuredBuffer<uint>	ExtraVdbVectorBuffer3;
-StructuredBuffer<uint>	ExtraVdbVectorBuffer4;
-// #endif
-
 // I can't make a custom MaterialExpression from a plugin. 
 // It's far from ideal but I have to adapt and use a 
 // mix of material params, and component params.
@@ -83,16 +71,6 @@ float4 RaymarchFogVolume(
 #endif
 #if USE_COLOR_VDB
 	VdbSampler ColorSampler,
-#endif
-#if USE_EXTRA_VDBS
-	VdbSampler FloatSampler1,
-	VdbSampler FloatSampler2,
-	VdbSampler FloatSampler3,
-	VdbSampler FloatSampler4,
-	VdbSampler VectorSampler1,
-	VdbSampler VectorSampler2,
-	VdbSampler VectorSampler3,
-	VdbSampler VectorSampler4,
 #endif
 	pnanovdb_vec3_t bbox_min,
 	pnanovdb_vec3_t bbox_max,
@@ -249,32 +227,6 @@ float4 RaymarchFogVolume(
         // Regular emissive
 		StepRadiance += StepTransmittance * Absorption * EmissiveColor;
 
-#if USE_EXTRA_VDBS
-		float FloatValue1 = SAMPLING_FLOAT(iPos, FloatSampler1.GridBuffer, FloatSampler1.GridType, FloatSampler1.Accessor);
-		float FloatValue2 = SAMPLING_FLOAT(iPos, FloatSampler2.GridBuffer, FloatSampler2.GridType, FloatSampler2.Accessor);
-		float FloatValue3 = SAMPLING_FLOAT(iPos, FloatSampler3.GridBuffer, FloatSampler3.GridType, FloatSampler3.Accessor);
-		float FloatValue4 = SAMPLING_FLOAT(iPos, FloatSampler4.GridBuffer, FloatSampler4.GridType, FloatSampler4.Accessor);
-		float3 VectorValue1 = SAMPLING_VECTOR(iPos, VectorSampler1.GridBuffer, VectorSampler1.GridType, VectorSampler1.Accessor);
-		float3 VectorValue2 = SAMPLING_VECTOR(iPos, VectorSampler2.GridBuffer, VectorSampler2.GridType, VectorSampler2.Accessor);
-		float3 VectorValue3 = SAMPLING_VECTOR(iPos, VectorSampler3.GridBuffer, VectorSampler3.GridType, VectorSampler3.Accessor);
-		float3 VectorValue4 = SAMPLING_VECTOR(iPos, VectorSampler4.GridBuffer, VectorSampler4.GridType, VectorSampler4.Accessor);
-
-	#ifdef USER_DEFINED_EXTRA_VDBS
-		// Users must define a CustomHLSL material node in Unreal's material editor that defines
-		// function UserDefinedEquation that returns final raymarching contribution:
-		// float3 UserDefinedEquation(float3 PhysicallyBasedRadiance, 
-		//							  float CustomVdb1, float CustomVdb2, float CustomVdb3, float CustomVdb4,
-		//							  float3 CustomVdb5, float3 CustomVdb6, float3 CustomVdb7, float3 CustomVdb8) { return ...; }
-		// Exemple1 (pass through): UserDefinedEquation(...) { return PhysicallyBasedRadiance; }
-		// Exemple2: UserDefinedEquation(...) { return PhysicallyBasedRadiance + CustomVdb1 * CustomVdb5; }
-		// Exemple3: UserDefinedEquation(...) { return PhysicallyBasedRadiance * CustomVdb5 + CustomVdb1 + CustomVdb2 + CustomVdb6.y; }
-		StepRadiance = UserDefinedEquation(	StepRadiance, 
-											FloatValue1, FloatValue2, FloatValue3, FloatValue4,
-											VectorValue1, VectorValue2, VectorValue3, VectorValue4);
-	#endif
-
-#endif
-
 		Radiance += StepRadiance;
 
 		// Update Transmittance
@@ -319,18 +271,6 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 #if USE_COLOR_VDB
 	VdbSampler ColorSampler = InitVdbSampler(ColorVdbBuffer);
 #endif
-#if USE_EXTRA_VDBS
-	// Don't even bother with permutations (which are killing Unreal shader compile times.
-	// This path is for non-realtime experimentation, don't overthink it.
-	VdbSampler FloatSampler1 = InitVdbSampler(ExtraVdbFloatBuffer1);
-	VdbSampler FloatSampler2 = InitVdbSampler(ExtraVdbFloatBuffer2);
-	VdbSampler FloatSampler3 = InitVdbSampler(ExtraVdbFloatBuffer3);
-	VdbSampler FloatSampler4 = InitVdbSampler(ExtraVdbFloatBuffer4);
-	VdbSampler VectorSampler1 = InitVdbSampler(ExtraVdbVectorBuffer1);
-	VdbSampler VectorSampler2 = InitVdbSampler(ExtraVdbVectorBuffer2);
-	VdbSampler VectorSampler3 = InitVdbSampler(ExtraVdbVectorBuffer3);
-	VdbSampler VectorSampler4 = InitVdbSampler(ExtraVdbVectorBuffer4);
-#endif
 
 	// Global values (could be computed on CPU, and passed to shader instead)
 	pnanovdb_vec3_t bbox_min = pnanovdb_coord_to_vec3(pnanovdb_root_get_bbox_min(DensitySampler.GridBuffer, DensitySampler.Root));
@@ -372,16 +312,6 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 							#endif
 							#if USE_COLOR_VDB
 								ColorSampler,
-							#endif
-							#if USE_EXTRA_VDBS
-								FloatSampler1,
-								FloatSampler2,
-								FloatSampler3,
-								FloatSampler4,
-								VectorSampler1,
-								VectorSampler2,
-								VectorSampler3,
-								VectorSampler4,
 							#endif
 							bbox_min, bbox_max, iRay, 
 							RandSequence, MaterialParameters, 

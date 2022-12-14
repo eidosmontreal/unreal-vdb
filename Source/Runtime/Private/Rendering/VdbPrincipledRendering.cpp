@@ -180,30 +180,40 @@ TRDGUniformBufferRef<FVdbPrincipledShaderParams> CreateVdbUniformBuffer(FRDGBuil
 
 	const FVdbPrincipledParams& Params = Proxy->GetParams();
 
+	float LocalStepSize = Params.StepSize;
+	uint32 MaxRayDepth = Params.MaxRayDepth;
+	uint32 SamplesPerPixel = Params.SamplesPerPixel;
+	int32 CinematicMode = FVdbCVars::CVarVolumetricVdbCinematicQuality.GetValueOnAnyThread();
+	if (CinematicMode == 1)
+	{
+		LocalStepSize /= 4.f;
+		MaxRayDepth *= 2;
+		SamplesPerPixel *= 2;
+	}
+	else if (CinematicMode == 2)
+	{
+		LocalStepSize /= 10.f;
+		MaxRayDepth *= 4;
+		SamplesPerPixel *= 4;
+	}
+
 	// Volume Params
 	UniformParameters->VdbDensity = Params.VdbDensity->GetBufferSRV();
 	UniformParameters->VdbTemperature = Params.VdbTemperature ? Params.VdbTemperature->GetBufferSRV() : UniformParameters->VdbDensity;
 	UniformParameters->VdbColor = Params.VdbColor ? Params.VdbColor->GetBufferSRV() : UniformParameters->VdbDensity;
-	UniformParameters->ExtraVdbFloatBuffer1 = Params.ExtraVdbs[0] ? Params.ExtraVdbs[0]->GetBufferSRV() : UniformParameters->VdbDensity;
-	UniformParameters->ExtraVdbFloatBuffer2 = Params.ExtraVdbs[1] ? Params.ExtraVdbs[1]->GetBufferSRV() : UniformParameters->VdbDensity;
-	UniformParameters->ExtraVdbFloatBuffer3 = Params.ExtraVdbs[2] ? Params.ExtraVdbs[2]->GetBufferSRV() : UniformParameters->VdbDensity;
-	UniformParameters->ExtraVdbFloatBuffer4 = Params.ExtraVdbs[3] ? Params.ExtraVdbs[3]->GetBufferSRV() : UniformParameters->VdbDensity;
-	UniformParameters->ExtraVdbVectorBuffer1 = Params.ExtraVdbs[4] ? Params.ExtraVdbs[4]->GetBufferSRV() : UniformParameters->VdbDensity;
-	UniformParameters->ExtraVdbVectorBuffer2 = Params.ExtraVdbs[5] ? Params.ExtraVdbs[5]->GetBufferSRV() : UniformParameters->VdbDensity;
-	UniformParameters->ExtraVdbVectorBuffer3 = Params.ExtraVdbs[6] ? Params.ExtraVdbs[6]->GetBufferSRV() : UniformParameters->VdbDensity;
-	UniformParameters->ExtraVdbVectorBuffer4 = Params.ExtraVdbs[7] ? Params.ExtraVdbs[7]->GetBufferSRV() : UniformParameters->VdbDensity;
 
 	UniformParameters->VolumeScale = Params.IndexSize;
 	UniformParameters->VolumeTranslation = Params.IndexMin;
 	UniformParameters->VolumeToLocal = Params.IndexToLocal;
 	UniformParameters->LocalToWorld = FMatrix44f(Proxy->GetLocalToWorld());
 	UniformParameters->WorldToLocal = FMatrix44f(Proxy->GetLocalToWorld().Inverse());
-	UniformParameters->SamplesPerPixel = UsePathTracing ? 1 : Params.SamplesPerPixel;
-	UniformParameters->StepSize = Params.StepSize;
+	UniformParameters->SamplesPerPixel = UsePathTracing ? 1 : SamplesPerPixel;
+	UniformParameters->StepSize = LocalStepSize;
 	UniformParameters->VoxelSize = Params.VoxelSize;
-	UniformParameters->MaxRayDepth = Params.MaxRayDepth;
+	UniformParameters->MaxRayDepth = MaxRayDepth;
 	UniformParameters->ColoredTransmittance = Params.ColoredTransmittance;
 	UniformParameters->TemporalNoise = Params.TemporalNoise;
+	UniformParameters->Threshold = FVdbCVars::CVarVolumetricVdbThreshold.GetValueOnRenderThread();
 	// Material Params
 	auto LinearColorToVector = [](const FLinearColor& Col) { return FVector3f(Col.R, Col.G, Col.B); };
 	UniformParameters->Color = LinearColorToVector(Params.Color);
@@ -224,6 +234,9 @@ TRDGUniformBufferRef<FVdbPrincipledShaderParams> CreateVdbUniformBuffer(FRDGBuil
 
 void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& Parameters)
 {
+	if (!FVdbCVars::CVarVolumetricVdb.GetValueOnRenderThread())
+		return;
+
 	if (VdbProxies.IsEmpty())
 		return;
 
@@ -242,9 +255,6 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 		const FVector& RightProxyCenter = Rhs.GetBounds().GetSphere().Center;
 		return ViewMat.TransformPosition(LeftProxyCenter).Z > ViewMat.TransformPosition(RightProxyCenter).Z; // front to back
 	});
-
-	FRDGTextureDesc TexDesc = Parameters.ColorTexture->Desc;
-	TexDesc.ClearValue = FClearValueBinding(FLinearColor::Transparent);
 
 	uint32 NumAccumulations = 0;
 	const bool UsePathTracing = View->Family->EngineShowFlags.PathTracing;
@@ -294,8 +304,8 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 			PermutationVector.Set<FVdbPrincipledPS::FUseTemperature>(Proxy->GetParams().VdbTemperature != nullptr);
 			PermutationVector.Set<FVdbPrincipledPS::FUseColor>(Proxy->GetParams().VdbColor != nullptr);
 			PermutationVector.Set<FVdbPrincipledPS::FLevelSet>(Proxy->IsLevelSet());
-			PermutationVector.Set<FVdbPrincipledPS::FTrilinear>(Proxy->UseTrilinearInterpolation());
-			PermutationVector.Set<FVdbPrincipledPS::FExtraVdbs>(Proxy->UseExtraRenderResources());
+			bool UseTrilinearInterpolation = Proxy->UseTrilinearInterpolation() || FVdbCVars::CVarVolumetricVdbTrilinear.GetValueOnRenderThread() || FVdbCVars::CVarVolumetricVdbCinematicQuality.GetValueOnAnyThread() == 2;
+			PermutationVector.Set<FVdbPrincipledPS::FTrilinear>(UseTrilinearInterpolation);
 
 			FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 			TShaderMapRef<FVdbPrincipledVS> VertexShader(GlobalShaderMap);
@@ -335,7 +345,9 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 			// Optional denoising (disabled with path tracing)
 			if (!UsePathTracing)
 			{
-				VdbCurrRenderTexture = VdbDenoiser::ApplyDenoising(GraphBuilder, VdbCurrRenderTexture, View, Parameters.ViewportRect, DenoiserMethod);
+				EVdbDenoiserMethod Method = FVdbCVars::CVarVolumetricVdbDenoiser.GetValueOnAnyThread() >= 0 ?
+					EVdbDenoiserMethod(FVdbCVars::CVarVolumetricVdbDenoiser.GetValueOnAnyThread()) : DenoiserMethod;
+				VdbCurrRenderTexture = VdbDenoiser::ApplyDenoising(GraphBuilder, VdbCurrRenderTexture, View, Parameters.ViewportRect, Method);
 			}
 		}
 

@@ -56,6 +56,10 @@ class UVdbMaterialComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes", meta = (ClampMin = "0", UIMin = "0", ClampMax = "1", UIMax = "1"))
 	float Jittering = 0.5;
 
+	// Using trilinear sampling interpolation. Gives much nicer results but poor performances. 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes")
+	bool TrilinearSampling = false;
+
 	// Add volume padding to account for additional details or displacement
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Attributes")
 	float VolumePadding = 0.0;

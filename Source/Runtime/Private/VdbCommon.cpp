@@ -18,6 +18,30 @@
 #include "Rendering/VdbRenderBuffer.h"
 #include "VdbCustomVersion.h"
 
+TAutoConsoleVariable<bool> FVdbCVars::CVarVolumetricVdb(
+	TEXT("r.Vdb"), true,
+	TEXT("VolumetricVdb components are rendered when true, otherwise ignored."),
+	ECVF_RenderThreadSafe);
+
+TAutoConsoleVariable<bool> FVdbCVars::CVarVolumetricVdbTrilinear(
+	TEXT("r.Vdb.Trilinear"), false,
+	TEXT("Force Trilinear sampling on all Vdb volumes."),
+	ECVF_RenderThreadSafe);
+
+TAutoConsoleVariable<int32> FVdbCVars::CVarVolumetricVdbCinematicQuality(
+	TEXT("r.Vdb.CinematicQuality"), 0,
+	TEXT("Force better cinematic quality on all Vdb volumes. Recommended during Movie render Queue, this allows great renders while keeping faster realtime viewport displays with lower quality. Please be aware that this may crash your GPU and Unreal with high settings.\n If 1, Step sizes are divided by 4x, samples per pixels mult x2.\n If 2, step sizes are divided by 10x, samples per pixels mult x4 AND trilinear sampling is forced to true."),
+	ECVF_RenderThreadSafe | ECVF_Scalability);
+
+TAutoConsoleVariable<int32> FVdbCVars::CVarVolumetricVdbDenoiser(
+	TEXT("r.Vdb.Denoiser"), -1,
+	TEXT("Denoiser method applied on Vdb FogVolumes. Used only if >= 0. Otherwise, fallback to engine value."),
+	ECVF_RenderThreadSafe | ECVF_Scalability);
+
+TAutoConsoleVariable<float> FVdbCVars::CVarVolumetricVdbThreshold(
+	TEXT("r.Vdb.Threshold"), 0.01,
+	TEXT("Transmittance threshold to stop raymarching. Lower values are better but more expensive. Must be close to 0."),
+	ECVF_RenderThreadSafe | ECVF_Scalability);
 
 FArchive& operator<<(FArchive& Ar, nanovdb::GridHandle<nanovdb::HostBuffer>& NanoGridHandle)
 {

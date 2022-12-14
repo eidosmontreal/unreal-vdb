@@ -33,6 +33,7 @@ FVdbMaterialSceneProxy::FVdbMaterialSceneProxy(const UVdbAssetComponent* AssetCo
 	LevelSet = AssetComponent->GetVdbClass() == EVdbClass::SignedDistance;
 	TranslucentLevelSet = LevelSet && InComponent->TranslucentLevelSet;
 	ImprovedSkylight = InComponent->ImprovedSkylight;
+	TrilinearSampling = InComponent->TrilinearSampling;
 	VdbMaterialRenderExtension = FVolumeRuntimeModule::GetRenderExtension();
 
 	const FVolumeRenderInfos* PrimaryRenderInfos = AssetComponent->GetRenderInfos(AssetComponent->DensityVolume);
@@ -56,27 +57,6 @@ FVdbMaterialSceneProxy::FVdbMaterialSceneProxy(const UVdbAssetComponent* AssetCo
 
 	FillValue(AssetComponent->TemperatureVolume, TemperatureRenderBuffer);
 	FillValue(AssetComponent->ColorVolume, ColorRenderBuffer);
-
-	if (AssetComponent->FloatVolume1 || AssetComponent->FloatVolume2 || AssetComponent->FloatVolume3 || AssetComponent->FloatVolume4 ||
-		AssetComponent->VectorVolume1 || AssetComponent->VectorVolume2 || AssetComponent->VectorVolume3 || AssetComponent->VectorVolume4)
-	{
-		// Extra non-realtime data
-		FillValue(AssetComponent->FloatVolume1, ExtraRenderBuffers[0]);
-		FillValue(AssetComponent->FloatVolume2, ExtraRenderBuffers[1]);
-		FillValue(AssetComponent->FloatVolume3, ExtraRenderBuffers[2]);
-		FillValue(AssetComponent->FloatVolume4, ExtraRenderBuffers[3]);
-		FillValue(AssetComponent->VectorVolume1, ExtraRenderBuffers[4]);
-		FillValue(AssetComponent->VectorVolume2, ExtraRenderBuffers[5]);
-		FillValue(AssetComponent->VectorVolume3, ExtraRenderBuffers[6]);
-		FillValue(AssetComponent->VectorVolume4, ExtraRenderBuffers[7]);
-	}
-	else
-	{
-		for (auto& Buffer : ExtraRenderBuffers)
-		{
-			Buffer = nullptr;
-		}
-	}
 }
 
 // This setups associated volume mesh for built-in Unreal passes. 
@@ -158,14 +138,4 @@ void FVdbMaterialSceneProxy::Update(const FMatrix44f& InIndexToLocal, const FVec
 	DensityRenderBuffer = PrimRenderBuffer;
 	TemperatureRenderBuffer = SecRenderBuffer;
 	ColorRenderBuffer = TerRenderBuffer;
-}
-
-void FVdbMaterialSceneProxy::UpdateExtraBuffers(const TStaticArray<FVdbRenderBuffer*, 8>& RenderBuffers)
-{
-	ExtraRenderBuffers = RenderBuffers;
-}
-
-bool FVdbMaterialSceneProxy::UseExtraRenderResources() const 
-{ 
-	return Algo::AnyOf(ExtraRenderBuffers, [](FVdbRenderBuffer* Buf) {return Buf != nullptr; }); 
 }

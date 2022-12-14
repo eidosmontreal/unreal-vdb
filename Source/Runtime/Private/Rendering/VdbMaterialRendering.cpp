@@ -29,21 +29,6 @@
 
 DEFINE_LOG_CATEGORY(LogSparseVolumetrics);
 
-static TAutoConsoleVariable<int32> CVarVolumetricVdb(
-	TEXT("r.Vdb"), 1,
-	TEXT("VolumetricVdb components are rendered when this is not 0, otherwise ignored."),
-	ECVF_RenderThreadSafe);
-
-static TAutoConsoleVariable<int32> CVarVolumetricVdbDenoiser(
-	TEXT("r.Vdb.Denoiser"), -1,
-	TEXT("Denoiser method applied on Vdb FogVolumes. Used only if >= 0. Otherwise, fallback to engine value."),
-	ECVF_RenderThreadSafe | ECVF_Scalability);
-
-static TAutoConsoleVariable<float> CVarVolumetricVdbThreshold(
-	TEXT("r.Vdb.Threshold"), 0.01,
-	TEXT("Transmittance threshold to stop raymarching. Lower values are better but more expensive. Must be close to 0."),
-	ECVF_RenderThreadSafe | ECVF_Scalability);
-
 //-----------------------------------------------------------------------------
 //--- FVdbMeshProcessor
 //-----------------------------------------------------------------------------
@@ -57,17 +42,17 @@ public:
 		FMeshPassDrawListContext* InDrawListContext,
 		bool IsLevelSet, bool IsTranslucentLevelSet,
 		bool ImprovedSkylight,
+		bool TrilinearSampling,
 		bool UseTempVdb, bool UseColorVdb,
-		bool UseExtraVdbs,
 		FVdbElementData&& ShaderElementData)
 		: FMeshPassProcessor(Scene, Scene->GetFeatureLevel(), InView, InDrawListContext)
 		, VdbShaderElementData(ShaderElementData)
 		, bLevelSet(IsLevelSet)
 		, bTranslucentLevelSet(IsTranslucentLevelSet)
 		, bImprovedSkylight(ImprovedSkylight)
+		, bTrilinearSampling(TrilinearSampling)
 		, bTemperatureVdb(UseTempVdb)
 		, bColorVdb(UseColorVdb)
-		, bExtraVdbs(UseExtraVdbs)
 	{
 		if (bLevelSet && !bTranslucentLevelSet)
 		{
@@ -78,6 +63,23 @@ public:
 		{
 			PassDrawRenderState.SetBlendState(TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI()); // premultiplied alpha blending
 			PassDrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI());
+		}
+
+		int32 CinematicMode = FVdbCVars::CVarVolumetricVdbCinematicQuality.GetValueOnAnyThread();
+		if (CinematicMode == 1)
+		{
+			VdbShaderElementData.CustomFloatData0[0] /= 4.f; // local step size
+			VdbShaderElementData.CustomFloatData0[1] = FMath::Max(1.f, VdbShaderElementData.CustomFloatData0[1] / 4.f); // local shadow step size
+			VdbShaderElementData.CustomIntData0[0] *= 2; // Max number of steps
+			VdbShaderElementData.CustomIntData0[1] *= 2; // Samples per pixels
+		}
+		else if (CinematicMode == 2)
+		{
+			VdbShaderElementData.CustomFloatData0[0] /= 10.f; // local step size
+			VdbShaderElementData.CustomFloatData0[1] = FMath::Max(1.f, VdbShaderElementData.CustomFloatData0[1] / 10.f); // local shadow step size
+			VdbShaderElementData.CustomIntData0[0] *= 4; // Max number of steps
+			VdbShaderElementData.CustomIntData0[1] *= 4; // Samples per pixels
+			bTrilinearSampling = true;
 		}
 	}
 
@@ -90,89 +92,54 @@ public:
 		{
 			const ERasterizerFillMode MeshFillMode = FM_Solid;
 			const ERasterizerCullMode MeshCullMode = CM_CCW;
+
+			#define PROCESS_SHADER(shader) { Process<FVdbShaderVS, ##shader>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode); }
+
 			if (bLevelSet)
 			{
 				if (bTranslucentLevelSet && bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_LevelSet_Translucent_EnvLight>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
+					PROCESS_SHADER(FVdbShaderPS_LevelSet_Translucent_EnvLight)
 				else if (bTranslucentLevelSet)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_LevelSet_Translucent>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
+					PROCESS_SHADER(FVdbShaderPS_LevelSet_Translucent)
 				else
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_LevelSet>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
+					PROCESS_SHADER(FVdbShaderPS_LevelSet)
 			}
 			else
 			{
 				// combination of 4 params: 2^4 = 16 different cases
 				// TODO: this is getting ridiculous, find better solution
-				if (!bTemperatureVdb && !bColorVdb && !bExtraVdbs && !bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (!bTemperatureVdb && !bColorVdb && !bExtraVdbs && bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_EnvLight>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (!bTemperatureVdb && !bColorVdb && bExtraVdbs && !bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Extra>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (!bTemperatureVdb && !bColorVdb && bExtraVdbs && bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Extra_EnvLight>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (!bTemperatureVdb && bColorVdb && !bExtraVdbs && !bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Color>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (!bTemperatureVdb && bColorVdb && !bExtraVdbs && bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Color_EnvLight>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (!bTemperatureVdb && bColorVdb && bExtraVdbs && !bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Color_Extra>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (!bTemperatureVdb && bColorVdb && bExtraVdbs && bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Color_Extra_EnvLight>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (bTemperatureVdb && !bColorVdb && !bExtraVdbs && !bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (bTemperatureVdb && !bColorVdb && !bExtraVdbs && bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody_EnvLight>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (bTemperatureVdb && !bColorVdb && bExtraVdbs && !bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody_Extra>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (bTemperatureVdb && !bColorVdb && bExtraVdbs && bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody_Extra_EnvLight>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (bTemperatureVdb && bColorVdb && !bExtraVdbs && !bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody_Color>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (bTemperatureVdb && bColorVdb && !bExtraVdbs && bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody_Color_EnvLight>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (bTemperatureVdb && bColorVdb && bExtraVdbs && !bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody_Color_Extra>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
-				else if (bTemperatureVdb && bColorVdb && bExtraVdbs && bImprovedSkylight)
-				{
-					Process<FVdbShaderVS, FVdbShaderPS_FogVolume_Blackbody_Color_Extra_EnvLight>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode);
-				}
+				if (!bTemperatureVdb && !bColorVdb && !bImprovedSkylight && !bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume)
+				else if (!bTemperatureVdb && !bColorVdb && !bImprovedSkylight && bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_Trilinear)
+				else if (!bTemperatureVdb && !bColorVdb && bImprovedSkylight && !bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_EnvLight)
+				else if (!bTemperatureVdb && !bColorVdb && bImprovedSkylight && bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_EnvLight_Trilinear)
+				else if (!bTemperatureVdb && bColorVdb && !bImprovedSkylight && !bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_Color)
+				else if (!bTemperatureVdb && bColorVdb && !bImprovedSkylight && bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_Color_Trilinear)
+				else if (!bTemperatureVdb && bColorVdb && bImprovedSkylight && !bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_Color_EnvLight)
+				else if (!bTemperatureVdb && bColorVdb && bImprovedSkylight && bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_Color_EnvLight_Trilinear)
+				else if (bTemperatureVdb && !bColorVdb && !bImprovedSkylight && !bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_Blackbody)
+				else if (bTemperatureVdb && !bColorVdb && !bImprovedSkylight && bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_Blackbody_Trilinear)
+				else if (bTemperatureVdb && !bColorVdb && bImprovedSkylight && !bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_Blackbody_EnvLight)
+				else if (bTemperatureVdb && !bColorVdb && bImprovedSkylight && bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_Blackbody_EnvLight_Trilinear)
+				else if (bTemperatureVdb && bColorVdb && !bImprovedSkylight && !bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_Blackbody_Color)
+				else if (bTemperatureVdb && bColorVdb && !bImprovedSkylight && bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_Blackbody_Color_Trilinear)
+				else if (bTemperatureVdb && bColorVdb && bImprovedSkylight && !bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_Blackbody_Color_EnvLight)
+				else if (bTemperatureVdb && bColorVdb && bImprovedSkylight && bTrilinearSampling)
+					PROCESS_SHADER(FVdbShaderPS_FogVolume_Blackbody_Color_EnvLight_Trilinear)
 			}
 		}
 	}
@@ -250,9 +217,9 @@ private:
 	bool bLevelSet;
 	bool bTranslucentLevelSet;
 	bool bImprovedSkylight;
+	bool bTrilinearSampling;
 	bool bTemperatureVdb;
 	bool bColorVdb;
-	bool bExtraVdbs;
 };
 
 //-----------------------------------------------------------------------------
@@ -266,7 +233,7 @@ FVdbMaterialRendering::FVdbMaterialRendering(const FAutoRegister& AutoRegister)
 
 bool FVdbMaterialRendering::ShouldRenderVolumetricVdb() const
 {
-	return CVarVolumetricVdb.GetValueOnRenderThread() > 0 && VertexFactory.IsValid();
+	return FVdbCVars::CVarVolumetricVdb.GetValueOnRenderThread() && VertexFactory.IsValid();
 }
 
 void FVdbMaterialRendering::InitRendering()
@@ -462,21 +429,15 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 							if (!ShaderElementData.DensityBufferSRV)
 								return;
 
-							const TStaticArray<FVdbRenderBuffer*, NUM_EXTRA_VDBS>& ExtraBuffers = Proxy->GetExtraRenderResources();
-							for (uint32 idx = 0; idx < NUM_EXTRA_VDBS; ++idx)
-							{
-								ShaderElementData.ExtraBuffersSRV[idx] = ExtraBuffers[idx] ? ExtraBuffers[idx]->GetBufferSRV() : ShaderElementData.DensityBufferSRV;
-							}
-
 							FVdbMeshProcessor PassMeshProcessor(
 								InView.Family->Scene->GetRenderScene(),
 								&InView,
 								DynamicMeshPassContext,
 								Proxy->IsLevelSet(), Proxy->IsTranslucentLevelSet(),
 								Proxy->UseImprovedSkylight(),
+								Proxy->UseTrilinearSampling() || FVdbCVars::CVarVolumetricVdbTrilinear.GetValueOnRenderThread(),
 								ShaderElementData.TemperatureBufferSRV != nullptr,
 								ShaderElementData.ColorBufferSRV != nullptr,
-								Proxy->UseExtraRenderResources(),
 								MoveTemp(ShaderElementData));
 
 							FVdbVertexFactoryUserDataWrapper UserData;
@@ -500,7 +461,7 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 
 	FVdbShaderParams* UniformParameters = GraphBuilder.AllocParameters<FVdbShaderParams>();
 	UniformParameters->SceneDepthTexture = Parameters.DepthTexture;
-	UniformParameters->Threshold = FMath::Max(0.0, CVarVolumetricVdbThreshold.GetValueOnAnyThread());
+	UniformParameters->Threshold = FMath::Max(0.0, FVdbCVars::CVarVolumetricVdbThreshold.GetValueOnAnyThread());
 	TRDGUniformBufferRef<FVdbShaderParams> VdbUniformBuffer = GraphBuilder.CreateUniformBuffer(UniformParameters);
 
 	if (!OpaqueProxies.IsEmpty())
@@ -521,8 +482,8 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 		DrawVdbProxies(TranslucentProxies, true, VdbUniformBuffer, VdbCurrRenderTexture);
 
 		// Add optional post-processing (blurring, denoising etc.)
-		EVdbDenoiserMethod Method = CVarVolumetricVdbDenoiser.GetValueOnAnyThread() >= 0 ?
-			EVdbDenoiserMethod(CVarVolumetricVdbDenoiser.GetValueOnAnyThread()) : DenoiserMethod;
+		EVdbDenoiserMethod Method = FVdbCVars::CVarVolumetricVdbDenoiser.GetValueOnAnyThread() >= 0 ?
+			EVdbDenoiserMethod(FVdbCVars::CVarVolumetricVdbDenoiser.GetValueOnAnyThread()) : DenoiserMethod;
 		FRDGTexture* DenoisedTex = VdbDenoiser::ApplyDenoising(
 			GraphBuilder, VdbCurrRenderTexture, View, Parameters.ViewportRect, Method);
 

@@ -107,6 +107,8 @@ When introducing displacement your volume might over-extend its boundaries. Use 
  The rendering model is greatly inspired by [Blender](https://docs.blender.org/manual/en/latest/render/shader_nodes/shader/volume_principled.html) and [Arnold](https://docs.arnoldrenderer.com/display/A5AFMUG/Standard+Volume). If you want more information on all rendering and volume parameters, check their documentations.
 
 #### Using command line for global improved rendering
-When using Movie Render Queue (MRQ), use lighter VDBs parameters for faster rendering in the viewport and use console variables to improve offline rendering quality during MRQ renders. (coming soon)
+When using Movie Render Queue (MRQ), use lighter VDBs parameters for faster rendering in the viewport and use console variables to improve offline rendering quality during MRQ renders.
+* r.Vdb.Trilinear false/true
+* r.Vdb.CinematicQuality 0/1/2. 0 is default, if 1 all step sizes are multiplied by 4 and samples per pixel by 2, if 2 all step sizes are multiplied by 10, samples by 4 and trilinear sampling is forced on all volumes.
 
 

@@ -64,27 +64,6 @@ FVdbPrincipledSceneProxy::FVdbPrincipledSceneProxy(const UVdbAssetComponent* Ass
 	FillValue(AssetComponent->TemperatureVolume, Params.VdbTemperature);
 	FillValue(AssetComponent->ColorVolume, Params.VdbColor);
 
-	if (AssetComponent->FloatVolume1 || AssetComponent->FloatVolume2 || AssetComponent->FloatVolume3 || AssetComponent->FloatVolume4 ||
-		AssetComponent->VectorVolume1 || AssetComponent->VectorVolume2 || AssetComponent->VectorVolume3 || AssetComponent->VectorVolume4)
-	{
-		// Extra non-realtime data
-		FillValue(AssetComponent->FloatVolume1, Params.ExtraVdbs[0]);
-		FillValue(AssetComponent->FloatVolume2, Params.ExtraVdbs[1]);
-		FillValue(AssetComponent->FloatVolume3, Params.ExtraVdbs[2]);
-		FillValue(AssetComponent->FloatVolume4, Params.ExtraVdbs[3]);
-		FillValue(AssetComponent->VectorVolume1, Params.ExtraVdbs[4]);
-		FillValue(AssetComponent->VectorVolume2, Params.ExtraVdbs[5]);
-		FillValue(AssetComponent->VectorVolume3, Params.ExtraVdbs[6]);
-		FillValue(AssetComponent->VectorVolume4, Params.ExtraVdbs[7]);
-	}
-	else
-	{
-		for (auto& Buffer : Params.ExtraVdbs)
-		{
-			Buffer = nullptr;
-		}
-	}
-
 	VdbRenderMgr = FVolumeRuntimeModule::GetRenderPrincipledMgr();
 }
 
@@ -176,14 +155,4 @@ void FVdbPrincipledSceneProxy::Update(const FMatrix44f& InIndexToLocal, const FV
 	Params.IndexToLocal = InIndexToLocal;
 	Params.VdbTemperature = TemperatureBuffer;
 	Params.VdbColor = ColorBuffer;
-}
-
-void FVdbPrincipledSceneProxy::UpdateExtraBuffers(const TStaticArray<FVdbRenderBuffer*, 8>& RenderBuffers)
-{
-	Params.ExtraVdbs = RenderBuffers;
-}
-
-bool FVdbPrincipledSceneProxy::UseExtraRenderResources() const
-{
-	return Algo::AnyOf(Params.ExtraVdbs, [](FVdbRenderBuffer* Buf) {return Buf != nullptr; });
 }

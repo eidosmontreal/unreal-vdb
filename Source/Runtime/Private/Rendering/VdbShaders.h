@@ -40,7 +40,6 @@ struct FVdbElementData : public FMeshMaterialShaderElementData
 	FShaderResourceViewRHIRef DensityBufferSRV;
 	FShaderResourceViewRHIRef TemperatureBufferSRV;
 	FShaderResourceViewRHIRef ColorBufferSRV;
-	TStaticArray<FShaderResourceViewRHIRef, NUM_EXTRA_VDBS> ExtraBuffersSRV;
 };
 
 class FVdbShaderVS : public FMeshMaterialShader
@@ -82,7 +81,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FVdbShaderParametersPS, )
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
-template<bool IsLevelSet, bool UseTemperatureBuffer, bool UseColorBuffer, bool UseExtraBuffers, bool NicerEnvLight>
+template<bool IsLevelSet, bool UseTemperatureBuffer, bool UseColorBuffer, bool NicerEnvLight, bool Trilinear>
 class FVdbShaderPS : public FMeshMaterialShader
 {
 	DECLARE_SHADER_TYPE(FVdbShaderPS, MeshMaterial);
@@ -95,15 +94,6 @@ class FVdbShaderPS : public FMeshMaterialShader
 	LAYOUT_FIELD(FShaderParameter, CustomFloatData1);
 	LAYOUT_FIELD(FShaderParameter, CustomFloatData2);
 
-	LAYOUT_FIELD(FShaderResourceParameter, ExtraVdbFloatBuffer1);
-	LAYOUT_FIELD(FShaderResourceParameter, ExtraVdbFloatBuffer2);
-	LAYOUT_FIELD(FShaderResourceParameter, ExtraVdbFloatBuffer3);
-	LAYOUT_FIELD(FShaderResourceParameter, ExtraVdbFloatBuffer4);
-	LAYOUT_FIELD(FShaderResourceParameter, ExtraVdbVectorBuffer1);
-	LAYOUT_FIELD(FShaderResourceParameter, ExtraVdbVectorBuffer2);
-	LAYOUT_FIELD(FShaderResourceParameter, ExtraVdbVectorBuffer3);
-	LAYOUT_FIELD(FShaderResourceParameter, ExtraVdbVectorBuffer4);
-
 	FVdbShaderPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
 		: FMeshMaterialShader(Initializer)
 	{
@@ -114,15 +104,6 @@ class FVdbShaderPS : public FMeshMaterialShader
 		CustomFloatData0.Bind(Initializer.ParameterMap, TEXT("CustomFloatData0"));
 		CustomFloatData1.Bind(Initializer.ParameterMap, TEXT("CustomFloatData1"));
 		CustomFloatData2.Bind(Initializer.ParameterMap, TEXT("CustomFloatData2"));
-
-		ExtraVdbFloatBuffer1.Bind(Initializer.ParameterMap, TEXT("ExtraVdbFloatBuffer1"));
-		ExtraVdbFloatBuffer2.Bind(Initializer.ParameterMap, TEXT("ExtraVdbFloatBuffer2"));
-		ExtraVdbFloatBuffer3.Bind(Initializer.ParameterMap, TEXT("ExtraVdbFloatBuffer3"));
-		ExtraVdbFloatBuffer4.Bind(Initializer.ParameterMap, TEXT("ExtraVdbFloatBuffer4"));
-		ExtraVdbVectorBuffer1.Bind(Initializer.ParameterMap, TEXT("ExtraVdbVectorBuffer1"));
-		ExtraVdbVectorBuffer2.Bind(Initializer.ParameterMap, TEXT("ExtraVdbVectorBuffer2"));
-		ExtraVdbVectorBuffer3.Bind(Initializer.ParameterMap, TEXT("ExtraVdbVectorBuffer3"));
-		ExtraVdbVectorBuffer4.Bind(Initializer.ParameterMap, TEXT("ExtraVdbVectorBuffer4"));
 
 		PassUniformBuffer.Bind(Initializer.ParameterMap, FVdbShaderParams::StaticStructMetadata.GetShaderVariableName());
 	}
@@ -142,8 +123,8 @@ public:
 		OutEnvironment.SetDefine(TEXT("VDB_LEVEL_SET"), IsLevelSet);
 		OutEnvironment.SetDefine(TEXT("USE_TEMPERATURE_VDB"), UseTemperatureBuffer);
 		OutEnvironment.SetDefine(TEXT("USE_COLOR_VDB"), UseColorBuffer);
-		OutEnvironment.SetDefine(TEXT("USE_EXTRA_VDBS"), UseExtraBuffers);
 		OutEnvironment.SetDefine(TEXT("NICER_BUT_EXPENSIVE_ENVLIGHT"), NicerEnvLight);
+		OutEnvironment.SetDefine(TEXT("USE_TRILINEAR_SAMPLING"), Trilinear);
 		OutEnvironment.SetDefine(TEXT("USE_FORCE_TEXTURE_MIP"), TEXT("1"));
 		OutEnvironment.SetDefine(TEXT("SHADER_VERSION_MAJOR"), NANOVDB_MAJOR_VERSION_NUMBER);
 		OutEnvironment.SetDefine(TEXT("SHADER_VERSION_MINOR"), NANOVDB_MINOR_VERSION_NUMBER);
@@ -168,38 +149,28 @@ public:
 		ShaderBindings.Add(CustomFloatData0, ShaderElementData.CustomFloatData0);
 		ShaderBindings.Add(CustomFloatData1, ShaderElementData.CustomFloatData1);
 		ShaderBindings.Add(CustomFloatData2, ShaderElementData.CustomFloatData2);
-
-		ShaderBindings.Add(ExtraVdbFloatBuffer1, ShaderElementData.ExtraBuffersSRV[0]);
-		ShaderBindings.Add(ExtraVdbFloatBuffer2, ShaderElementData.ExtraBuffersSRV[1]);
-		ShaderBindings.Add(ExtraVdbFloatBuffer3, ShaderElementData.ExtraBuffersSRV[2]);
-		ShaderBindings.Add(ExtraVdbFloatBuffer4, ShaderElementData.ExtraBuffersSRV[3]);
-		ShaderBindings.Add(ExtraVdbVectorBuffer1, ShaderElementData.ExtraBuffersSRV[4]);
-		ShaderBindings.Add(ExtraVdbVectorBuffer2, ShaderElementData.ExtraBuffersSRV[5]);
-		ShaderBindings.Add(ExtraVdbVectorBuffer3, ShaderElementData.ExtraBuffersSRV[6]);
-		ShaderBindings.Add(ExtraVdbVectorBuffer4, ShaderElementData.ExtraBuffersSRV[7]);
 	}
 };
 // TODO: this is getting ridiculous. Find other solution
 typedef FVdbShaderPS<true, false, false, false, false> FVdbShaderPS_LevelSet;
 typedef FVdbShaderPS<true, true, false, false, false> FVdbShaderPS_LevelSet_Translucent; // reusing USE_TEMPERATURE_VDB variation for translucency to avoid another variation
-typedef FVdbShaderPS<true, true, false, false, true> FVdbShaderPS_LevelSet_Translucent_EnvLight; // reusing USE_TEMPERATURE_VDB variation for translucency to avoid another variation
+typedef FVdbShaderPS<true, true, false, true, false> FVdbShaderPS_LevelSet_Translucent_EnvLight; // reusing USE_TEMPERATURE_VDB variation for translucency to avoid another variation
 typedef FVdbShaderPS<false, false, false, false, false>  FVdbShaderPS_FogVolume;
-typedef FVdbShaderPS<false, false, false, false, true>  FVdbShaderPS_FogVolume_EnvLight;
+typedef FVdbShaderPS<false, false, false, false, true>  FVdbShaderPS_FogVolume_Trilinear;
+typedef FVdbShaderPS<false, false, false, true, false>  FVdbShaderPS_FogVolume_EnvLight;
+typedef FVdbShaderPS<false, false, false, true, true>  FVdbShaderPS_FogVolume_EnvLight_Trilinear;
 typedef FVdbShaderPS<false, false, true, false, false>  FVdbShaderPS_FogVolume_Color;
-typedef FVdbShaderPS<false, false, true, false, true>  FVdbShaderPS_FogVolume_Color_EnvLight;
-typedef FVdbShaderPS<false, false, false, true, false>  FVdbShaderPS_FogVolume_Extra;
-typedef FVdbShaderPS<false, false, false, true, true>  FVdbShaderPS_FogVolume_Extra_EnvLight;
-typedef FVdbShaderPS<false, false, true, true, false>  FVdbShaderPS_FogVolume_Color_Extra;
-typedef FVdbShaderPS<false, false, true, true, true>  FVdbShaderPS_FogVolume_Color_Extra_EnvLight;
+typedef FVdbShaderPS<false, false, true, false, true>  FVdbShaderPS_FogVolume_Color_Trilinear;
+typedef FVdbShaderPS<false, false, true, true, false>  FVdbShaderPS_FogVolume_Color_EnvLight;
+typedef FVdbShaderPS<false, false, true, true, true>  FVdbShaderPS_FogVolume_Color_EnvLight_Trilinear;
 typedef FVdbShaderPS<false, true, false, false, false>  FVdbShaderPS_FogVolume_Blackbody;
-typedef FVdbShaderPS<false, true, false, false, true>  FVdbShaderPS_FogVolume_Blackbody_EnvLight;
+typedef FVdbShaderPS<false, true, false, false, true>  FVdbShaderPS_FogVolume_Blackbody_Trilinear;
+typedef FVdbShaderPS<false, true, false, true, false>  FVdbShaderPS_FogVolume_Blackbody_EnvLight;
+typedef FVdbShaderPS<false, true, false, true, true>  FVdbShaderPS_FogVolume_Blackbody_EnvLight_Trilinear;
 typedef FVdbShaderPS<false, true, true, false, false>  FVdbShaderPS_FogVolume_Blackbody_Color;
-typedef FVdbShaderPS<false, true, true, false, true>  FVdbShaderPS_FogVolume_Blackbody_Color_EnvLight;
-typedef FVdbShaderPS<false, true, false, true, false>  FVdbShaderPS_FogVolume_Blackbody_Extra;
-typedef FVdbShaderPS<false, true, false, true, true>  FVdbShaderPS_FogVolume_Blackbody_Extra_EnvLight;
-typedef FVdbShaderPS<false, true, true, true, false>  FVdbShaderPS_FogVolume_Blackbody_Color_Extra;
-typedef FVdbShaderPS<false, true, true, true, true>  FVdbShaderPS_FogVolume_Blackbody_Color_Extra_EnvLight;
-
+typedef FVdbShaderPS<false, true, true, false, true>  FVdbShaderPS_FogVolume_Blackbody_Color_Trilinear;
+typedef FVdbShaderPS<false, true, true, true, false>  FVdbShaderPS_FogVolume_Blackbody_Color_EnvLight;
+typedef FVdbShaderPS<false, true, true, true, true>  FVdbShaderPS_FogVolume_Blackbody_Color_EnvLight_Trilinear;
 
 //-----------------------------------------------------------------------------
 
@@ -208,24 +179,16 @@ BEGIN_UNIFORM_BUFFER_STRUCT(FVdbPrincipledShaderParams, )
 	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, VdbDensity)
 	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, VdbTemperature)
 	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, VdbColor)
-	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, ExtraVdbFloatBuffer1)
-	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, ExtraVdbFloatBuffer2)
-	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, ExtraVdbFloatBuffer3)
-	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, ExtraVdbFloatBuffer4)
-	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, ExtraVdbVectorBuffer1)
-	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, ExtraVdbVectorBuffer2)
-	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, ExtraVdbVectorBuffer3)
-	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, ExtraVdbVectorBuffer4)
 
 	SHADER_PARAMETER(FVector3f, VolumeScale)
+	SHADER_PARAMETER(float, StepSize)
 	SHADER_PARAMETER(FVector3f, VolumeTranslation)
+	SHADER_PARAMETER(float, VoxelSize)
 	SHADER_PARAMETER(FMatrix44f, VolumeToLocal)
 	SHADER_PARAMETER(FMatrix44f, LocalToWorld)
 	SHADER_PARAMETER(FMatrix44f, WorldToLocal)
 	SHADER_PARAMETER(uint32, SamplesPerPixel)
 	SHADER_PARAMETER(uint32, MaxRayDepth)
-	SHADER_PARAMETER(float, StepSize)
-	SHADER_PARAMETER(float, VoxelSize)
 	SHADER_PARAMETER(uint32, ColoredTransmittance)
 	SHADER_PARAMETER(uint32, TemporalNoise)
 	// Material parameters
@@ -236,6 +199,7 @@ BEGIN_UNIFORM_BUFFER_STRUCT(FVdbPrincipledShaderParams, )
 	SHADER_PARAMETER(float, Anisotropy)
 	SHADER_PARAMETER(float, EmissionStrength)
 	SHADER_PARAMETER(FVector3f, EmissionColor)
+	SHADER_PARAMETER(float, Threshold)
 	SHADER_PARAMETER(FVector3f, BlackbodyTint)
 	SHADER_PARAMETER(float, BlackbodyIntensity)
 	SHADER_PARAMETER(float, Temperature)
@@ -276,8 +240,7 @@ class FVdbPrincipledPS : public FGlobalShader
 	class FUseColor : SHADER_PERMUTATION_BOOL("USE_COLOR_VDB");
 	class FLevelSet : SHADER_PERMUTATION_BOOL("LEVEL_SET");
 	class FTrilinear : SHADER_PERMUTATION_BOOL("USE_TRILINEAR_SAMPLING");
-	class FExtraVdbs : SHADER_PERMUTATION_BOOL("USE_EXTRA_VDBS");
-	using FPermutationDomain = TShaderPermutationDomain<FPathTracing, FUseTemperature, FUseColor, FLevelSet, FTrilinear, FExtraVdbs>;
+	using FPermutationDomain = TShaderPermutationDomain<FPathTracing, FUseTemperature, FUseColor, FLevelSet, FTrilinear>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		// Scene / Unreal data
