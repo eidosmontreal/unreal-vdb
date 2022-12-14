@@ -81,6 +81,12 @@ No. I'm working on this plugin on my spare time only and don't have time (and mo
 I'm well aware of transparency issues with translucent objects (including hair strands) and I don't have a solution for it as I'm limited by plugin capabilities.
 Some people like using Unreal's Volumetric Clouds system to render VDBs (check the example levels in the Release packages) and it solves some of these issues when using the right options (tip: check "Apply Cloud Fogging" on your translucent materials), but you will loose my core VDB rendering features. Epic should release their own version of VDB rendering soon that there's no other choice than to wait for their release.
 
+#### Can I only render VDBs using the Movie Render Queue (MRQ) ?
+
+You can use the *r.Vdb.DebugMode* console variable (default value is 0) to render only VDBs radiance/rgb (*r.Vdb.DebugMode 1*) or VDBs alpha (*r.Vdb.DebugMode 2*). 
+You can setup your Movie Render Queue options to add this console variable. I haven't implemented custom render passes or any other Unreal equivalents. 
+
+
 #### What is the difference between VdbMaterial and VdbPrincipled ?
 
 Unless you want to use the pathtracer, you should always use VdbMaterial Actors. Both actors have feature parity 
