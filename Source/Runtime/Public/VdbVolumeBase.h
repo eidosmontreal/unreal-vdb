@@ -40,13 +40,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = Volume)
 	bool IsSequence() const { return IsVolSequence; }
 
+	UFUNCTION(BlueprintCallable, Category = Volume)
+	bool IsVectorGrid() const { return IsVolVector; }
+
 	EVdbClass GetVdbClass() { return VdbClass; };
 	const FBox& GetGlobalBounds() const { return Bounds; }
 	const FIntVector& GetLargestVolume() const { return LargestVolume; }
 	// We only support Volume with cubic voxels (same dimension in all axes)
 	float GetVoxelSize() const { return VoxelSize.X; }
 	int GetMemorySize() const { return MemoryUsage; }
-	bool IsVectorGrid() const;
 #if WITH_EDITORONLY_DATA
 	class UAssetImportData* GetAssetImportData() { return AssetImportData; }
 #endif
@@ -107,6 +109,7 @@ protected:
 	EQuantizationType Quantization = EQuantizationType::None;
 
 	bool IsVolSequence = false;
+	bool IsVolVector = false;
 };
 
 

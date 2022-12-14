@@ -76,16 +76,12 @@ void UVdbVolumeBase::UpdateFromMetadata(const nanovdb::GridMetaData* MetaData)
 		UE_LOG(LogSparseVolumetrics, Error, TEXT("VDB %s has an unsupported type. Be prepared for undefined behavior."), *GetName());
 	}
 
+	IsVolVector = MetaData->gridType() == nanovdb::GridType::Vec3f || MetaData->gridType() == nanovdb::GridType::Vec4f;
+
 #if WITH_EDITORONLY_DATA
 	DataType = FString(nanovdb::toStr(MetaData->gridType()));
 	Class = FString(nanovdb::toStr(MetaData->gridClass()));
 	GridName = MetaData->shortGridName();
 	MemoryUsageStr = *GetMemoryString(MemoryUsage, false);
 #endif
-}
-
-bool UVdbVolumeBase::IsVectorGrid() const
-{
-	const FVolumeRenderInfos* Infos = GetRenderInfos(0);
-	return Infos ? Infos->IsVectorGrid() : false;
 }
