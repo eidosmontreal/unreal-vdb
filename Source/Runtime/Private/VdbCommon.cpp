@@ -43,6 +43,11 @@ TAutoConsoleVariable<float> FVdbCVars::CVarVolumetricVdbThreshold(
 	TEXT("Transmittance threshold to stop raymarching. Lower values are better but more expensive. Must be close to 0."),
 	ECVF_RenderThreadSafe | ECVF_Scalability);
 
+TAutoConsoleVariable<bool> FVdbCVars::CVarVolumetricVdbAfterTransparents(
+	TEXT("r.Vdb.AfterTransparents"), false,
+	TEXT("VDBs are rendered before transparent objects by default (false). If true, VDBs will be rendered after transparent objects."),
+	ECVF_RenderThreadSafe);
+
 FArchive& operator<<(FArchive& Ar, nanovdb::GridHandle<nanovdb::HostBuffer>& NanoGridHandle)
 {
 	Ar.UsingCustomVersion(FVdbCustomVersion::GUID);

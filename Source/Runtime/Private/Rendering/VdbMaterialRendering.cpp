@@ -312,7 +312,16 @@ void FVdbMaterialRendering::InitDelegate()
 		if (RendererModule)
 		{
 			RenderDelegate.BindRaw(this, &FVdbMaterialRendering::Render_RenderThread);
-			RenderDelegateHandle = RendererModule->RegisterPostOpaqueRenderDelegate(RenderDelegate);
+
+			// Render VDBs before or after Transparent objects
+			if (FVdbCVars::CVarVolumetricVdbAfterTransparents.GetValueOnRenderThread())
+			{
+				RenderDelegateHandle = RendererModule->RegisterOverlayRenderDelegate(RenderDelegate);
+			}
+			else
+			{
+				RenderDelegateHandle = RendererModule->RegisterPostOpaqueRenderDelegate(RenderDelegate);
+			}
 		}
 	}
 }

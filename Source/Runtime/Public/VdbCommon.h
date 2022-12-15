@@ -46,6 +46,7 @@ struct FVdbCVars
 	static TAutoConsoleVariable<int32> CVarVolumetricVdbCinematicQuality;
 	static TAutoConsoleVariable<int32> CVarVolumetricVdbDenoiser;
 	static TAutoConsoleVariable<float> CVarVolumetricVdbThreshold;
+	static TAutoConsoleVariable<bool> CVarVolumetricVdbAfterTransparents;
 };
 
 class FVdbRenderBuffer;
