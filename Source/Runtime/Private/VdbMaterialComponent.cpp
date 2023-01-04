@@ -19,8 +19,8 @@
 #include "VdbVolumeSequence.h"
 #include "VdbAssetComponent.h"
 #include "Rendering/VdbMaterialSceneProxy.h"
+#include "Curves/CurveLinearColorAtlas.h"
 
-//#include "RendererInterface.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Materials/MaterialInterface.h"
 
@@ -129,5 +129,34 @@ void UVdbMaterialComponent::SetAttribute(T& Attribute, const T& NewValue)
 	}
 }
 template void UVdbMaterialComponent::SetAttribute<float>(float& Attribute, const float& NewValue);
+
+#if WITH_EDITOR
+
+void UVdbMaterialComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	if (PropertyChangedEvent.Property
+		&& (PropertyChangedEvent.Property->GetName() == TEXT("BlackBodyCurveAtlas") || 
+			PropertyChangedEvent.Property->GetName() == TEXT("BlackBodyCurve")))
+	{
+		if (!BlackBodyCurveAtlas)
+		{
+			// Need a Curve Atlas before selecting a Curve
+			BlackBodyCurve = nullptr;
+		}
+		else
+		{
+			int32 CurveIndex = INDEX_NONE;
+			if (!BlackBodyCurveAtlas->GetCurveIndex(BlackBodyCurve, CurveIndex))
+			{
+				// Selected Curve should be part of the selected Curve Atlas. Otherwise reset.
+				BlackBodyCurve = nullptr;
+			}
+		}
+	}
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+
+#endif
 
 #undef LOCTEXT_NAMESPACE

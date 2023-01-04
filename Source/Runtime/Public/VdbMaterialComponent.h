@@ -118,7 +118,6 @@ class UVdbMaterialComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Shading|Blackbody", meta = (ClampMin = "0.0", UIMin = "0.0", EditCondition = "!PhysicallyBasedBlackbody"))
 	float TemperatureMultiplier = 1.0;
 
-
 	// LevelSet (aka Surface VDB) are usually meant to be opaque. But we can treat them as translucent with this option.
 	// The interior of the LevelSets have fixed constant density.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|LevelSet")
@@ -175,6 +174,10 @@ public:
 
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Set VdbAssetComponent"), Category = Volume)
 	void SetVdbAssets(UVdbAssetComponent* Comp);
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
 
 private:
 
