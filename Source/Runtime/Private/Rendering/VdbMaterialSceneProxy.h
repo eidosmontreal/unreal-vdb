@@ -32,6 +32,7 @@ public:
 	FVector3f GetIndexMin() const { return IndexMin; }
 	FVector3f GetIndexSize() const { return IndexSize; }
 	FIntVector4 GetCustomIntData0() const { return CustomIntData0; }
+	FIntVector4 GetCustomIntData1() const { return CustomIntData1; }
 	FVector4f GetCustomFloatData0() const { return CustomFloatData0; }
 	FVector4f GetCustomFloatData1() const { return CustomFloatData1; }
 	FVector4f GetCustomFloatData2() const { return CustomFloatData2; }
@@ -40,6 +41,7 @@ public:
 	const FVdbRenderBuffer* GetDensityRenderResource() const { return DensityRenderBuffer; }
 	const FVdbRenderBuffer* GetTemperatureRenderResource() const { return TemperatureRenderBuffer; }
 	const FVdbRenderBuffer* GetColorRenderResource() const { return ColorRenderBuffer; }
+	FTexture* GetBlackbodyAtlasResource() const { return (CurveIndex != INDEX_NONE) ? CurveAtlas : nullptr; }
 	
 	bool IsLevelSet() const { return LevelSet; }
 	bool IsTranslucentLevelSet() const { return LevelSet && TranslucentLevelSet; }
@@ -73,9 +75,13 @@ private:
 	bool TrilinearSampling;
 
 	FIntVector4 CustomIntData0;
+	FIntVector4 CustomIntData1;
 	FVector4f CustomFloatData0;
 	FVector4f CustomFloatData1;
 	FVector4f CustomFloatData2;
+
+	int32 CurveIndex;
+	FTexture* CurveAtlas;
 
 	FVdbRenderBuffer* DensityRenderBuffer;
 	FVdbRenderBuffer* TemperatureRenderBuffer;

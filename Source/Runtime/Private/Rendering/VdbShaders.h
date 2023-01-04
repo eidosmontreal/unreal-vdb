@@ -34,12 +34,14 @@ namespace VdbShaders
 struct FVdbElementData : public FMeshMaterialShaderElementData
 {
 	FIntVector4 CustomIntData0; // x: MaxRayDepth, y: SamplesPerPixel, z: colored transmittance, w: temporal noise
+	FIntVector4 CustomIntData1; // x: BlackbodyCurveIndex, y: unused, z: unused, w: unused
 	FVector4f CustomFloatData0; // x: Local step size, y: Shadow step size mutliplier, z: voxel size, w: jittering
 	FVector4f CustomFloatData1; // x: anisotropy, y: albedo, z: blackbody intensity, w: blackbody temperature
 	FVector4f CustomFloatData2; // x: density mul, y: padding, z: ambient, w: unused
 	FShaderResourceViewRHIRef DensityBufferSRV;
 	FShaderResourceViewRHIRef TemperatureBufferSRV;
 	FShaderResourceViewRHIRef ColorBufferSRV;
+	FShaderResourceViewRHIRef BlackbodyColorSRV;
 };
 
 class FVdbShaderVS : public FMeshMaterialShader
@@ -89,7 +91,9 @@ class FVdbShaderPS : public FMeshMaterialShader
 	LAYOUT_FIELD(FShaderResourceParameter, DensityVdbBuffer);
 	LAYOUT_FIELD(FShaderResourceParameter, TemperatureVdbBuffer);
 	LAYOUT_FIELD(FShaderResourceParameter, ColorVdbBuffer);
+	LAYOUT_FIELD(FShaderResourceParameter, BlackbodyColor);
 	LAYOUT_FIELD(FShaderParameter, CustomIntData0);
+	LAYOUT_FIELD(FShaderParameter, CustomIntData1);
 	LAYOUT_FIELD(FShaderParameter, CustomFloatData0);
 	LAYOUT_FIELD(FShaderParameter, CustomFloatData1);
 	LAYOUT_FIELD(FShaderParameter, CustomFloatData2);
@@ -100,7 +104,9 @@ class FVdbShaderPS : public FMeshMaterialShader
 		DensityVdbBuffer.Bind(Initializer.ParameterMap, TEXT("DensityVdbBuffer"));
 		TemperatureVdbBuffer.Bind(Initializer.ParameterMap, TEXT("TemperatureVdbBuffer"));
 		ColorVdbBuffer.Bind(Initializer.ParameterMap, TEXT("ColorVdbBuffer"));
+		BlackbodyColor.Bind(Initializer.ParameterMap, TEXT("BlackbodyColor"));
 		CustomIntData0.Bind(Initializer.ParameterMap, TEXT("CustomIntData0"));
+		CustomIntData1.Bind(Initializer.ParameterMap, TEXT("CustomIntData1"));
 		CustomFloatData0.Bind(Initializer.ParameterMap, TEXT("CustomFloatData0"));
 		CustomFloatData1.Bind(Initializer.ParameterMap, TEXT("CustomFloatData1"));
 		CustomFloatData2.Bind(Initializer.ParameterMap, TEXT("CustomFloatData2"));
@@ -145,7 +151,9 @@ public:
 		ShaderBindings.Add(DensityVdbBuffer, ShaderElementData.DensityBufferSRV);
 		ShaderBindings.Add(TemperatureVdbBuffer, ShaderElementData.TemperatureBufferSRV);
 		ShaderBindings.Add(ColorVdbBuffer, ShaderElementData.ColorBufferSRV);
+		ShaderBindings.Add(BlackbodyColor, ShaderElementData.BlackbodyColorSRV);
 		ShaderBindings.Add(CustomIntData0, ShaderElementData.CustomIntData0);
+		ShaderBindings.Add(CustomIntData1, ShaderElementData.CustomIntData1);
 		ShaderBindings.Add(CustomFloatData0, ShaderElementData.CustomFloatData0);
 		ShaderBindings.Add(CustomFloatData1, ShaderElementData.CustomFloatData1);
 		ShaderBindings.Add(CustomFloatData2, ShaderElementData.CustomFloatData2);

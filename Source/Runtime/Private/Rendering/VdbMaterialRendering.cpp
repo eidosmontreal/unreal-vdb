@@ -420,6 +420,8 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 			RHICmdList.SetViewport(ViewportRect.Min.X, ViewportRect.Min.Y, 0.0f, ViewportRect.Max.X, ViewportRect.Max.Y, 1.0f);
 			RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 
+			FRHITextureViewCache TexCache;
+
 			for (const FVdbMaterialSceneProxy* Proxy : Proxies)
 			{
 				if (Proxy && Proxy->GetMaterial() && Proxy->IsVisible(&InView) && Proxy->GetDensityRenderResource())
@@ -429,6 +431,7 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 						{
 							FVdbElementData ShaderElementData;
 							ShaderElementData.CustomIntData0 = Proxy->GetCustomIntData0();
+							ShaderElementData.CustomIntData1 = Proxy->GetCustomIntData1();
 							ShaderElementData.CustomFloatData0 = Proxy->GetCustomFloatData0();
 							ShaderElementData.CustomFloatData1 = Proxy->GetCustomFloatData1();
 							ShaderElementData.CustomFloatData2 = Proxy->GetCustomFloatData2();
@@ -437,6 +440,10 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 							ShaderElementData.ColorBufferSRV = Proxy->GetColorRenderResource() ? Proxy->GetColorRenderResource()->GetBufferSRV() : nullptr;
 							if (!ShaderElementData.DensityBufferSRV)
 								return;
+
+							FTexture* CurveAtlas = Proxy->GetBlackbodyAtlasResource();
+							FTextureRHIRef CurveAtlasRHI = CurveAtlas ? CurveAtlas->GetTextureRHI() : nullptr;
+							ShaderElementData.BlackbodyColorSRV = CurveAtlasRHI ? TexCache.GetOrCreateSRV(CurveAtlasRHI, FRHITextureSRVCreateInfo()) : GWhiteTextureWithSRV->ShaderResourceViewRHI;
 
 							FVdbMeshProcessor PassMeshProcessor(
 								InView.Family->Scene->GetRenderScene(),
