@@ -264,6 +264,9 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 		return ViewMat.TransformPosition(LeftProxyCenter).Z > ViewMat.TransformPosition(RightProxyCenter).Z; // front to back
 	});
 
+	if (SortedVdbProxies.IsEmpty()) 
+		return;
+
 	uint32 NumAccumulations = 0;
 	const bool UsePathTracing = View->Family->EngineShowFlags.PathTracing;
 
@@ -383,7 +386,7 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 		}
 	}
 
-	if (VdbDefaultRenderTexture)
+	if (VdbDefaultRenderTexture && !FirstRender)
 	{
 		// Composite VDB offscreen rendering onto back buffer
 		VdbComposite::CompositeFullscreen(GraphBuilder, VdbDefaultRenderTexture, Parameters.ColorTexture, View);
