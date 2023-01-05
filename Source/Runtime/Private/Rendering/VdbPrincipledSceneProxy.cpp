@@ -130,7 +130,7 @@ FRDGTextureRef FVdbPrincipledSceneProxy::GetOrCreateRenderTarget(FRDGBuilder& Gr
 
 		const FPooledRenderTargetDesc Desc = FPooledRenderTargetDesc::Create2DDesc(
 			RtSize,
-			PF_A16B16G16R16,
+			PF_FloatRGBA,
 			FClearValueBinding(FLinearColor::Transparent),
 			TexCreate_None,
 			TexCreate_ShaderResource | TexCreate_UAV | TexCreate_RenderTargetable,
