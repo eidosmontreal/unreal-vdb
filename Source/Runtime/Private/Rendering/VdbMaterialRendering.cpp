@@ -480,6 +480,7 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 	FVdbShaderParams* UniformParameters = GraphBuilder.AllocParameters<FVdbShaderParams>();
 	UniformParameters->SceneDepthTexture = Parameters.DepthTexture;
 	UniformParameters->Threshold = FMath::Max(0.0, FVdbCVars::CVarVolumetricVdbThreshold.GetValueOnAnyThread());
+	UniformParameters->LinearTexSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	TRDGUniformBufferRef<FVdbShaderParams> VdbUniformBuffer = GraphBuilder.CreateUniformBuffer(UniformParameters);
 
 	if (!OpaqueProxies.IsEmpty())

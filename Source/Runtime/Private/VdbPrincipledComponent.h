@@ -112,17 +112,32 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 	FLinearColor EmissionColor = FLinearColor(1.0, 1.0, 1.0, 1.0);
 
 	// Blackbody emission for fire. Set to 1 for physically accurate intensity.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (ClampMin = "0.0", UIMin = "0.0"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader|Blackbody", meta = (ClampMin = "0.0", UIMin = "0.0"))
 	float BlackbodyIntensity = 1.0;
 
 	// Color tint for blackbody emission.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader|Blackbody")
 	FLinearColor BlackbodyTint = FLinearColor(1.0, 1.0, 1.0, 1.0);
 
+	// Use physically based temperature-to-color values, or user-defined color curve.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader|Blackbody")
+	bool PhysicallyBasedBlackbody = true;
+	 
 	// Temperature in kelvin for blackbody emission, higher values emit more.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (ClampMin = "0.0", UIMin = "0.0", ClampMax = "6500", UIMax = "6500"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader|Blackbody", meta = (ClampMin = "0.0", UIMin = "0.0", ClampMax = "6500", UIMax = "6500", EditCondition = "PhysicallyBasedBlackbody"))
 	float Temperature = 1500.0;
 
+	// Material is sampling the CurveAtlas only. Cf https://docs.unrealengine.com/5.1/en-US/curve-atlases-in-unreal-engine-materials/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader|Blackbody", meta = (EditCondition = "!PhysicallyBasedBlackbody"))
+	TObjectPtr<class UCurveLinearColorAtlas> BlackBodyCurveAtlas = nullptr;
+
+	// Select Curve from the Curve Atlas. If invalid or if selected curve doesn't belong to the Atlas above, material will default to physically based temperature to color.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader|Blackbody", meta = (EditCondition = "!PhysicallyBasedBlackbody"))
+	TObjectPtr<class UCurveLinearColor> BlackBodyCurve = nullptr; // TODO: find a way to filter only curves from atlas in the editor dialog.
+
+	// Temperature values should be between 0 and 1. If using color curve (aka color ramp), this can help boost Temperature values.
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader|Blackbody", meta = (ClampMin = "0.0", UIMin = "0.0", EditCondition = "!PhysicallyBasedBlackbody"))
+	float TemperatureMultiplier = 1.0;
 
 	//----------------------------------------------------------------------------
 	// Debug options (by order of priority)

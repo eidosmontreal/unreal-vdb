@@ -51,9 +51,21 @@ FVdbPrincipledSceneProxy::FVdbPrincipledSceneProxy(const UVdbAssetComponent* Ass
 	Params.EmissionColor = InComponent->EmissionColor;
 	Params.BlackbodyIntensity = InComponent->BlackbodyIntensity;
 	Params.BlackbodyTint = InComponent->BlackbodyTint;
-	Params.Temperature = InComponent->Temperature;
 	Params.UseDirectionalLight = InComponent->UseDirectionalLight ? 1.0f : 0.0f;
 	Params.UseEnvironmentLight = InComponent->UseEnvironmentLight ? 1.0f : 0.0f;
+	
+	int32 CurveIndex = INDEX_NONE;
+	if (!InComponent->PhysicallyBasedBlackbody && InComponent->BlackBodyCurve && InComponent->BlackBodyCurveAtlas)
+	{
+		InComponent->BlackBodyCurveAtlas->GetCurveIndex(InComponent->BlackBodyCurve, CurveIndex);
+	}
+	FTexture* CurveAtlas = InComponent->BlackBodyCurveAtlas ? InComponent->BlackBodyCurveAtlas->GetResource() : nullptr;
+	uint32 AtlasHeight = InComponent->BlackBodyCurveAtlas ? InComponent->BlackBodyCurveAtlas->TextureHeight : 0;
+	Params.Temperature = (CurveIndex == INDEX_NONE) ? InComponent->Temperature : InComponent->TemperatureMultiplier;
+
+	Params.BlackbodyCurveAtlas = CurveAtlas;
+	Params.CurveIndex = CurveIndex;
+	Params.CurveAtlasHeight = int32(AtlasHeight);
 
 	auto FillValue = [AssetComponent](UVdbVolumeBase* Base, FVdbRenderBuffer*& Buffer)
 	{

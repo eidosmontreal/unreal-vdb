@@ -73,6 +73,7 @@ public:
 
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVdbShaderParams, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneDepthTexture)
+	SHADER_PARAMETER_SAMPLER(SamplerState, LinearTexSampler)
 	SHADER_PARAMETER(float, Threshold)
 END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
@@ -187,6 +188,8 @@ BEGIN_UNIFORM_BUFFER_STRUCT(FVdbPrincipledShaderParams, )
 	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, VdbDensity)
 	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, VdbTemperature)
 	SHADER_PARAMETER_SRV(StructuredBuffer<uint>, VdbColor)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, BlackbodyCurveAtlas)
+	SHADER_PARAMETER_SAMPLER(SamplerState, LinearTexSampler)
 
 	SHADER_PARAMETER(FVector3f, VolumeScale)
 	SHADER_PARAMETER(float, StepSize)
@@ -213,6 +216,8 @@ BEGIN_UNIFORM_BUFFER_STRUCT(FVdbPrincipledShaderParams, )
 	SHADER_PARAMETER(float, Temperature)
 	SHADER_PARAMETER(float, UseDirectionalLight)
 	SHADER_PARAMETER(float, UseEnvironmentLight)
+	SHADER_PARAMETER(int32, CurveIndex)
+	SHADER_PARAMETER(int32, CurveAtlasHeight)
 END_UNIFORM_BUFFER_STRUCT()
 
 class FVdbPrincipledVS : public FGlobalShader

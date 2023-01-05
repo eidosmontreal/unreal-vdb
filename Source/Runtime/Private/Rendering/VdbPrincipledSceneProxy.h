@@ -26,6 +26,7 @@ struct FVdbPrincipledParams
 	FVdbRenderBuffer* VdbDensity;
 	FVdbRenderBuffer* VdbTemperature;
 	FVdbRenderBuffer* VdbColor;
+	FTexture* BlackbodyCurveAtlas;
 	FVector3f IndexMin;
 	uint32 ColoredTransmittance;
 	uint32 TemporalNoise;
@@ -47,6 +48,8 @@ struct FVdbPrincipledParams
 	float UseDirectionalLight;
 	float UseEnvironmentLight;
 	float Ambient;
+	int32 CurveIndex;
+	int32 CurveAtlasHeight;
 };
 
 // Render Thread equivalent of VdbPrincipledComponent

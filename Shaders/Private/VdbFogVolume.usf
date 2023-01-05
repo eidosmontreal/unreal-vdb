@@ -38,6 +38,7 @@ Texture2D				BlackbodyColor; // curve atlas
 #define COLORED_TRANSMITTANCE bool(CustomIntData0.z) 
 #define TEMPORAL_NOISE bool(CustomIntData0.w) 
 #define CURVE_INDEX CustomIntData1.x
+#define CURVE_HEIGHT CustomIntData1.y
 #define LOCAL_STEP_SIZE CustomFloatData0.x
 #define SHADOW_STEP_SIZE_MULT CustomFloatData0.y
 #define VOXEL_SIZE CustomFloatData0.z
@@ -226,7 +227,8 @@ float4 RaymarchFogVolume(
 		if (CURVE_INDEX >= 0)
 		{
 			// Sample user defined color curve
-			TemperatureColor = BlackbodyColor.Load(int3(clamp(int(Temperature * 256.0), 0, 255), CURVE_INDEX, 0)).rgb;
+			float2 uv = float2(Temperature, (CURVE_INDEX + 0.5) / float(CURVE_HEIGHT));
+			TemperatureColor = BlackbodyColor.Sample(VdbParams.LinearTexSampler, uv).rgb;
 		}
 		else
 		{

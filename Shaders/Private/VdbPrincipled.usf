@@ -218,9 +218,21 @@ float4 RaymarchVolume(
 #if USE_TEMPERATURE_VDB
 		// Blackbody emissive
 		float Temperature = SAMPLING_FLOAT_FILTERING(iPos, TemperatureSampler.GridBuffer, TemperatureSampler.GridType, TemperatureSampler.Accessor) * VdbPrincipledParams.Temperature;
-		float3 TemperatureColor = ColorTemperatureToRGB(Temperature) * VdbPrincipledParams.BlackbodyTint * VdbPrincipledParams.BlackbodyIntensity;
 
-		StepRadiance += StepTransmittance * Absorption * TemperatureColor;
+		float3 TemperatureColor = 0.0;
+		if (VdbPrincipledParams.CurveIndex >= 0)
+		{
+			// Sample user defined color curve
+			float2 uv = float2(Temperature, (VdbPrincipledParams.CurveIndex + 0.5) / float(VdbPrincipledParams.CurveAtlasHeight));
+			TemperatureColor = VdbPrincipledParams.BlackbodyCurveAtlas.Sample(VdbPrincipledParams.LinearTexSampler, uv).rgb;
+		}
+		else
+		{
+			// Use physically based temperature to color
+			TemperatureColor = ColorTemperatureToRGB(Temperature);
+		}
+
+		StepRadiance += StepTransmittance * Absorption * TemperatureColor * VdbPrincipledParams.BlackbodyTint * VdbPrincipledParams.BlackbodyIntensity;
 #endif
 
 		// Regular emissive

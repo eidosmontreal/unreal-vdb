@@ -175,7 +175,7 @@ void FVdbPrincipledRendering::ReleaseDelegate()
 	}
 }
 
-TRDGUniformBufferRef<FVdbPrincipledShaderParams> CreateVdbUniformBuffer(FRDGBuilder& GraphBuilder, const FVdbPrincipledSceneProxy* Proxy, bool UsePathTracing)
+TRDGUniformBufferRef<FVdbPrincipledShaderParams> CreateVdbUniformBuffer(FRDGBuilder& GraphBuilder, FRHITextureViewCache& TexCache, const FVdbPrincipledSceneProxy* Proxy, bool UsePathTracing)
 {
 	FVdbPrincipledShaderParams* UniformParameters = GraphBuilder.AllocParameters<FVdbPrincipledShaderParams>();
 
@@ -203,6 +203,11 @@ TRDGUniformBufferRef<FVdbPrincipledShaderParams> CreateVdbUniformBuffer(FRDGBuil
 	UniformParameters->VdbTemperature = Params.VdbTemperature ? Params.VdbTemperature->GetBufferSRV() : UniformParameters->VdbDensity;
 	UniformParameters->VdbColor = Params.VdbColor ? Params.VdbColor->GetBufferSRV() : UniformParameters->VdbDensity;
 
+	UniformParameters->BlackbodyCurveAtlas = Params.BlackbodyCurveAtlas ? 
+		RegisterExternalTexture(GraphBuilder, Params.BlackbodyCurveAtlas->GetTextureRHI(), TEXT("VdbBlackbodyCurveAtlas")) :
+		RegisterExternalTexture(GraphBuilder, GBlackTexture->GetTextureRHI(), TEXT("BlackTexture"));
+	UniformParameters->LinearTexSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+
 	UniformParameters->VolumeScale = Params.IndexSize;
 	UniformParameters->VolumeTranslation = Params.IndexMin;
 	UniformParameters->VolumeToLocal = Params.IndexToLocal;
@@ -229,6 +234,8 @@ TRDGUniformBufferRef<FVdbPrincipledShaderParams> CreateVdbUniformBuffer(FRDGBuil
 	UniformParameters->Temperature = Params.Temperature;
 	UniformParameters->UseDirectionalLight = Params.UseDirectionalLight;
 	UniformParameters->UseEnvironmentLight = Params.UseEnvironmentLight;
+	UniformParameters->CurveIndex = Params.CurveIndex;
+	UniformParameters->CurveAtlasHeight = Params.CurveAtlasHeight;
 
 	return GraphBuilder.CreateUniformBuffer(UniformParameters);
 }
@@ -288,6 +295,7 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 		VdbDefaultRenderTexture = RegisterExternalTexture(GraphBuilder, DefaultVdbRenderTargetTex->GetTextureRHI(), TEXT("VdbRenderTarget"));
 	}
 
+	FRHITextureViewCache TexCache;
 	for (FVdbPrincipledSceneProxy* Proxy : SortedVdbProxies)
 	{
 		// Cannot read and write from the same buffer. Use double-buffering rendering.
@@ -296,7 +304,7 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 
 		if (NumAccumulations < MaxSPP && Proxy->GetParams().VdbDensity)
 		{
-			TRDGUniformBufferRef<FVdbPrincipledShaderParams> VdbUniformBuffer = CreateVdbUniformBuffer(GraphBuilder, Proxy, UsePathTracing);
+			TRDGUniformBufferRef<FVdbPrincipledShaderParams> VdbUniformBuffer = CreateVdbUniformBuffer(GraphBuilder, TexCache, Proxy, UsePathTracing);
 
 			FVdbPrincipledPS::FParameters* ParametersPS = GraphBuilder.AllocParameters<FVdbPrincipledPS::FParameters>();
 			ParametersPS->View = View->ViewUniformBuffer;
@@ -312,7 +320,10 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 			PermutationVector.Set<FVdbPrincipledPS::FUseTemperature>(Proxy->GetParams().VdbTemperature != nullptr);
 			PermutationVector.Set<FVdbPrincipledPS::FUseColor>(Proxy->GetParams().VdbColor != nullptr);
 			PermutationVector.Set<FVdbPrincipledPS::FLevelSet>(Proxy->IsLevelSet());
-			bool UseTrilinearInterpolation = Proxy->UseTrilinearInterpolation() || FVdbCVars::CVarVolumetricVdbTrilinear.GetValueOnRenderThread() || FVdbCVars::CVarVolumetricVdbCinematicQuality.GetValueOnAnyThread() == 2;
+			bool UseTrilinearInterpolation = 
+				Proxy->UseTrilinearInterpolation() || 
+				FVdbCVars::CVarVolumetricVdbTrilinear.GetValueOnRenderThread() || 
+				FVdbCVars::CVarVolumetricVdbCinematicQuality.GetValueOnAnyThread() == 2;
 			PermutationVector.Set<FVdbPrincipledPS::FTrilinear>(UseTrilinearInterpolation);
 
 			FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
