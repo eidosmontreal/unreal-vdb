@@ -21,8 +21,6 @@ public class VolumeRuntime : ModuleRules
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        OptimizeCode = CodeOptimization.Never;
-
         PublicIncludePaths.AddRange(
 			new string[] {
 				// ... add public include paths required here ...
