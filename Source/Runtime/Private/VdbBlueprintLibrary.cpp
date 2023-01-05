@@ -18,5 +18,5 @@
 
 void UVdbBlueprintLibrary::SetDenoiserMethod(EVdbDenoiserMethod Method)
 {
-	FVolumeRuntimeModule::GetRenderExtension()->SetDenoiserMethod(Method);
+	FVolumeRuntimeModule::GetRenderExtension(nullptr)->SetDenoiserMethod(Method);
 }

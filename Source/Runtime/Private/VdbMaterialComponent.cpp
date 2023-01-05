@@ -31,6 +31,9 @@ UVdbMaterialComponent::UVdbMaterialComponent(const FObjectInitializer& ObjectIni
 {
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> DefaultMaterial(TEXT("/SparseVolumetrics/Materials/M_VDB_Lit_Inst"));
 	Material = DefaultMaterial.Object;
+
+	static ConstructorHelpers::FObjectFinder<UTextureRenderTarget2D> DefaultRenderTarget(TEXT("TextureRenderTarget2D'/SparseVolumetrics/Misc/RT_VdbMatRenderTarget.RT_VdbMatRenderTarget'"));
+	RenderTarget = DefaultRenderTarget.Object;
 }
 
 UVdbMaterialComponent::~UVdbMaterialComponent() {}

@@ -43,6 +43,9 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Set VdbAssetComponent"), Category = Volume)
 	void SetVdbAssets(UVdbAssetComponent* Comp);
 
+	UPROPERTY()
+	TObjectPtr<class UTextureRenderTarget2D> RenderTarget; // Must be the same for all VdbPrincipledActors
+
 	//----------------------------------------------------------------------------
 	// Volume Attributes
 	//----------------------------------------------------------------------------

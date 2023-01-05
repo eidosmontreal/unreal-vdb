@@ -29,7 +29,8 @@
 UVdbPrincipledComponent::UVdbPrincipledComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
-
+	static ConstructorHelpers::FObjectFinder<UTextureRenderTarget2D> DefaultRenderTarget(TEXT("TextureRenderTarget2D'/SparseVolumetrics/Misc/RT_VdbPrinRenderTarget.RT_VdbPrinRenderTarget'"));
+	RenderTarget = DefaultRenderTarget.Object;
 }
 
 UVdbPrincipledComponent::~UVdbPrincipledComponent() {}

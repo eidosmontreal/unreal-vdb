@@ -64,7 +64,7 @@ FVdbPrincipledSceneProxy::FVdbPrincipledSceneProxy(const UVdbAssetComponent* Ass
 	FillValue(AssetComponent->TemperatureVolume, Params.VdbTemperature);
 	FillValue(AssetComponent->ColorVolume, Params.VdbColor);
 
-	VdbRenderMgr = FVolumeRuntimeModule::GetRenderPrincipledMgr();
+	VdbRenderMgr = FVolumeRuntimeModule::GetRenderPrincipledMgr(InComponent->RenderTarget);
 }
 
 void FVdbPrincipledSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const

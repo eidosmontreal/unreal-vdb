@@ -37,7 +37,7 @@ public:
 
 	FVdbPrincipledRendering(const FAutoRegister& AutoRegister);
 
-	void Init();
+	void Init(UTextureRenderTarget2D* DefaultRenderTarget);
 	void Release();
 
 	void AddVdbProxy(FVdbPrincipledSceneProxy* Proxy);
@@ -46,7 +46,7 @@ public:
 	//~ Begin ISceneViewExtension Interface
 	virtual void SetupViewFamily(FSceneViewFamily& InViewFamily) override {}
 	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override {}
-	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override {}
+	virtual void BeginRenderViewFamily(FSceneViewFamily& InViewFamily) override;
 	virtual void PreRenderView_RenderThread(FRDGBuilder& GraphBuilder, FSceneView& InView) override {}
 	virtual void PreRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily) override;
 	virtual int32 GetPriority() const override { return -1; }
@@ -66,6 +66,9 @@ private:
 	TArray<FVdbPrincipledSceneProxy*> VdbProxies;
 	FPostOpaqueRenderDelegate RenderDelegate;
 	FDelegateHandle RenderDelegateHandle;
+
+	UTextureRenderTarget2D* DefaultVdbRenderTarget;
+	FTexture* DefaultVdbRenderTargetTex;
 
 	FBufferRHIRef IndexBufferRHI;
 	FBufferRHIRef VertexBufferRHI;

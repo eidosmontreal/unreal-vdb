@@ -55,7 +55,7 @@ public:
 
 IMPLEMENT_SHADER_TYPE(, FCompositePS, TEXT("/Plugin/VdbVolume/Private/VdbComposite.usf"), TEXT("MainPS"), SF_Pixel)
 
-void VdbComposite::CompositeFullscreen(FRDGBuilder& GraphBuilder, FRDGTexture* InputTexture, FRDGTexture* OutTexture, const FSceneView* View)
+void VdbComposite::CompositeFullscreen(FRDGBuilder& GraphBuilder, FRDGTexture* InputTexture, FRDGTexture* OutTexture, const FSceneView* View, bool ForceClear, bool ForceRegularAlpha)
 {
 	static uint32 LastFrame = 0;
 
@@ -71,6 +71,7 @@ void VdbComposite::CompositeFullscreen(FRDGBuilder& GraphBuilder, FRDGTexture* I
 		LastFrame = View->Family->FrameNumber;
 		Clear = DebugDisplayMode > 0; // Clear backbuffer to black for debug display
 	}
+	Clear |= ForceClear;
 
 	FIntRect Viewport(FIntPoint(0, 0), OutTexture->Desc.Extent);
 
@@ -99,8 +100,13 @@ void VdbComposite::CompositeFullscreen(FRDGBuilder& GraphBuilder, FRDGTexture* I
 	//		InversedAlpha = 1 - (Alpha_foreground + 1 - InversedAlpha_background - Alpha_foreground + InversedAlpha_background * Alpha_foreground)
 	//		InversedAlpha = InversedAlpha_background - InversedAlpha_background * Alpha_foreground
 	// This is achievable with BO_ReverseSubtract, BF_DestAlpha, BF_One flags.
-	// When PropagateAlpha is 0 (default), Alpha doesn't matter so any flags will do.
 	FRHIBlendState* BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_InverseSourceAlpha, BO_ReverseSubtract, BF_DestAlpha, BF_One>::GetRHI();
+
+	// When PropagateAlpha is 0 (default), Alpha doesn't matter so any flags will do unless we want a regular compositing
+	if (ForceRegularAlpha)
+	{
+		BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI();
+	}
 
 	FPixelShaderUtils::AddFullscreenPass(
 		GraphBuilder,

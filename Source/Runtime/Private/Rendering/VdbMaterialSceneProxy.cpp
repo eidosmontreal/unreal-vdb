@@ -35,7 +35,8 @@ FVdbMaterialSceneProxy::FVdbMaterialSceneProxy(const UVdbAssetComponent* AssetCo
 	TranslucentLevelSet = LevelSet && InComponent->TranslucentLevelSet;
 	ImprovedSkylight = InComponent->ImprovedSkylight;
 	TrilinearSampling = InComponent->TrilinearSampling;
-	VdbMaterialRenderExtension = FVolumeRuntimeModule::GetRenderExtension();
+
+	VdbMaterialRenderExtension = FVolumeRuntimeModule::GetRenderExtension(InComponent->RenderTarget);
 
 	const FVolumeRenderInfos* PrimaryRenderInfos = AssetComponent->GetRenderInfos(AssetComponent->DensityVolume);
 	DensityRenderBuffer = PrimaryRenderInfos ? PrimaryRenderInfos->GetRenderResource() : nullptr;

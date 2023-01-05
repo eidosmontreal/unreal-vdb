@@ -19,6 +19,7 @@
 #include "VdbCommon.h"
 #include "VdbComposite.h"
 #include "VolumeMesh.h"
+#include "SceneTexturesConfig.h"
 
 #include "LocalVertexFactory.h"
 #include "MeshPassProcessor.h"
@@ -259,18 +260,19 @@ void FVdbMaterialRendering::ReleaseRendering()
 }
 #undef RELEASE_RESOURCE
 
-void FVdbMaterialRendering::Init()
+void FVdbMaterialRendering::Init(UTextureRenderTarget2D* DefaultRenderTarget)
 {
 	if (IsInRenderingThread())
 	{
+		DefaultVdbRenderTarget = DefaultRenderTarget;
 		InitRendering();
 	}
 	else
 	{
 		ENQUEUE_RENDER_COMMAND(InitVdbRendering)(
-			[this](FRHICommandListImmediate& RHICmdList)
+			[this, DefaultRenderTarget](FRHICommandListImmediate& RHICmdList)
 			{
-				Init();
+				Init(DefaultRenderTarget);
 			});
 	}
 }
@@ -490,10 +492,18 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 	{
 		SCOPE_CYCLE_COUNTER(STAT_VdbTranslucent_RT);
 
-		FRDGTextureDesc TexDesc = Parameters.ColorTexture->Desc;
-		TexDesc.Format = PF_FloatRGBA; // force RGBA. Depending on quality settings, ColorTexture might not have alpha
-		TexDesc.ClearValue = FClearValueBinding(FLinearColor::Transparent);
-		FRDGTexture* VdbCurrRenderTexture = GraphBuilder.CreateTexture(TexDesc, TEXT("VdbRenderTexture"));
+		FRDGTexture* VdbCurrRenderTexture = nullptr;
+		if (DefaultVdbRenderTargetTex && DefaultVdbRenderTargetTex->GetTextureRHI())
+		{
+			VdbCurrRenderTexture = RegisterExternalTexture(GraphBuilder, DefaultVdbRenderTargetTex->GetTextureRHI(), TEXT("VdbRenderTarget"));
+		}
+		else
+		{
+			FRDGTextureDesc TexDesc = Parameters.ColorTexture->Desc;
+			TexDesc.Format = PF_FloatRGBA; // force RGBA. Depending on quality settings, ColorTexture might not have alpha
+			TexDesc.ClearValue = FClearValueBinding(FLinearColor::Transparent);
+			VdbCurrRenderTexture = GraphBuilder.CreateTexture(TexDesc, TEXT("VdbRenderTexture"));
+		}
 
 		DrawVdbProxies(TranslucentProxies, true, VdbUniformBuffer, VdbCurrRenderTexture);
 
@@ -537,5 +547,31 @@ void FVdbMaterialRendering::PreRenderViewFamily_RenderThread(FRDGBuilder& GraphB
 	for (FVdbMaterialSceneProxy* Proxy : VdbProxies)
 	{
 		Proxy->ResetVisibility();
+	}
+}
+
+// Called on game thread when view family is about to be rendered.
+void FVdbMaterialRendering::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
+{
+	if (DefaultVdbRenderTarget)
+	{
+		if (const FRenderTarget* RefRenderTarget = InViewFamily.RenderTarget)
+		{
+			const FSceneTexturesConfig& Config = FSceneTexturesConfig::Get();
+			if (Config.Extent.X != DefaultVdbRenderTarget->SizeX ||
+				Config.Extent.Y != DefaultVdbRenderTarget->SizeY ||
+				DefaultVdbRenderTarget->RenderTargetFormat != RTF_RGBA16f)
+			{
+				DefaultVdbRenderTarget->ClearColor = FLinearColor::Transparent;
+				DefaultVdbRenderTarget->InitCustomFormat(Config.Extent.X, Config.Extent.Y, PF_FloatRGBA, true);
+				DefaultVdbRenderTarget->UpdateResourceImmediate(true);
+			}
+		}
+
+		DefaultVdbRenderTargetTex = DefaultVdbRenderTarget->GetResource();
+	}
+	else
+	{
+		DefaultVdbRenderTargetTex = nullptr;
 	}
 }

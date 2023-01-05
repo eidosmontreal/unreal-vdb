@@ -27,12 +27,12 @@ public:
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
-	static TRenderExtensionPtr GetRenderExtension();
-	static TRenderPrincipledPtr GetRenderPrincipledMgr();
+	static TRenderExtensionPtr GetRenderExtension(UTextureRenderTarget2D* DefaultRenderTarget);
+	static TRenderPrincipledPtr GetRenderPrincipledMgr(UTextureRenderTarget2D* DefaultRenderTarget);
 
 private:
-	TRenderExtensionPtr GetOrCreateRenderExtension();
-	TRenderPrincipledPtr GetOrCreateRenderPrincipledMgr();
+	TRenderExtensionPtr GetOrCreateRenderExtension(UTextureRenderTarget2D* DefaultRenderTarget);
+	TRenderPrincipledPtr GetOrCreateRenderPrincipledMgr(UTextureRenderTarget2D* DefaultRenderTarget);
 
 	TRenderExtensionPtr VdbMaterialRenderExtension; // Regular renderer
 	TRenderPrincipledPtr VdbPrincipledRenderExtension; // Experimentation renderer

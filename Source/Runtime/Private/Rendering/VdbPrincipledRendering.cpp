@@ -113,18 +113,19 @@ void FVdbPrincipledRendering::ReleaseRendering()
 	ReleaseDelegate();
 }
 
-void FVdbPrincipledRendering::Init()
+void FVdbPrincipledRendering::Init(UTextureRenderTarget2D* DefaultRenderTarget)
 {
 	if (IsInRenderingThread())
 	{
+		DefaultVdbRenderTarget = DefaultRenderTarget;
 		InitRendering();
 	}
 	else
 	{
 		ENQUEUE_RENDER_COMMAND(InitVdbRendering)(
-			[this](FRHICommandListImmediate& RHICmdList)
+			[this, DefaultRenderTarget](FRHICommandListImmediate& RHICmdList)
 			{
-				Init();
+				Init(DefaultRenderTarget);
 			});
 	}
 }
@@ -275,10 +276,17 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 
 	FIntPoint RtSize = Parameters.ColorTexture->Desc.Extent;
 	bool IsEven = NumAccumulations % 2;
+	bool FirstRender = true;
 
 	int32 SamplesPerPixelCVar = CVarPathTracingMaxSamplesPerPixel.GetValueOnRenderThread();
 	uint32 MaxSPP = SamplesPerPixelCVar > -1 ? SamplesPerPixelCVar : View->FinalPostProcessSettings.PathTracingSamplesPerPixel;
 	MaxSPP = FMath::Max(MaxSPP, 1u);
+
+	FRDGTextureRef VdbDefaultRenderTexture = nullptr;
+	if (DefaultVdbRenderTargetTex && DefaultVdbRenderTargetTex->GetTextureRHI())
+	{
+		VdbDefaultRenderTexture = RegisterExternalTexture(GraphBuilder, DefaultVdbRenderTargetTex->GetTextureRHI(), TEXT("VdbRenderTarget"));
+	}
 
 	for (FVdbPrincipledSceneProxy* Proxy : SortedVdbProxies)
 	{
@@ -351,8 +359,23 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 			}
 		}
 
+		// Render into user friendly RenderTarget, if it exists
+		if (VdbDefaultRenderTexture)
+		{
+			VdbComposite::CompositeFullscreen(GraphBuilder, VdbCurrRenderTexture, VdbDefaultRenderTexture, View, FirstRender, true);
+			FirstRender = false;
+		}
+		else
+		{
+			// Composite VDB offscreen rendering onto back buffer
+			VdbComposite::CompositeFullscreen(GraphBuilder, VdbCurrRenderTexture, Parameters.ColorTexture, View);
+		}
+	}
+
+	if (VdbDefaultRenderTexture)
+	{
 		// Composite VDB offscreen rendering onto back buffer
-		VdbComposite::CompositeFullscreen(GraphBuilder, VdbCurrRenderTexture, Parameters.ColorTexture, View);
+		VdbComposite::CompositeFullscreen(GraphBuilder, VdbDefaultRenderTexture, Parameters.ColorTexture, View);
 	}
 }
 
@@ -385,5 +408,31 @@ void FVdbPrincipledRendering::PreRenderViewFamily_RenderThread(FRDGBuilder& Grap
 	for (FVdbPrincipledSceneProxy* Proxy : VdbProxies)
 	{
 		Proxy->ResetVisibility();
+	}
+}
+
+// Called on game thread when view family is about to be rendered.
+void FVdbPrincipledRendering::BeginRenderViewFamily(FSceneViewFamily& InViewFamily)
+{
+	if (DefaultVdbRenderTarget)
+	{
+		if (const FRenderTarget* RefRenderTarget = InViewFamily.RenderTarget)
+		{
+			const FSceneTexturesConfig& Config = FSceneTexturesConfig::Get();
+			if (Config.Extent.X != DefaultVdbRenderTarget->SizeX ||
+				Config.Extent.Y != DefaultVdbRenderTarget->SizeY ||
+				DefaultVdbRenderTarget->RenderTargetFormat != RTF_RGBA16f)
+			{
+				DefaultVdbRenderTarget->ClearColor = FLinearColor::Transparent;
+				DefaultVdbRenderTarget->InitCustomFormat(Config.Extent.X, Config.Extent.Y, PF_FloatRGBA, true);
+				DefaultVdbRenderTarget->UpdateResourceImmediate(true);
+			}
+		}
+
+		DefaultVdbRenderTargetTex = DefaultVdbRenderTarget->GetResource();
+	}
+	else
+	{
+		DefaultVdbRenderTargetTex = nullptr;
 	}
 }

@@ -44,36 +44,36 @@ void FVolumeRuntimeModule::ShutdownModule()
 	if (VdbPrincipledRenderExtension) VdbPrincipledRenderExtension->Release();
 }
 
-FVolumeRuntimeModule::TRenderExtensionPtr FVolumeRuntimeModule::GetRenderExtension()
+FVolumeRuntimeModule::TRenderExtensionPtr FVolumeRuntimeModule::GetRenderExtension(UTextureRenderTarget2D* DefaultRenderTarget)
 {
 	static const FName ModuleName = "VolumeRuntime";
 	auto& ModuleInterface = FModuleManager::LoadModuleChecked<FVolumeRuntimeModule>(ModuleName);
-	return ModuleInterface.GetOrCreateRenderExtension();
+	return ModuleInterface.GetOrCreateRenderExtension(DefaultRenderTarget);
 }
 
-FVolumeRuntimeModule::TRenderExtensionPtr FVolumeRuntimeModule::GetOrCreateRenderExtension()
+FVolumeRuntimeModule::TRenderExtensionPtr FVolumeRuntimeModule::GetOrCreateRenderExtension(UTextureRenderTarget2D* DefaultRenderTarget)
 {
 	if (!VdbMaterialRenderExtension.IsValid())
 	{
 		VdbMaterialRenderExtension = FSceneViewExtensions::NewExtension<FVdbMaterialRendering>();
-		VdbMaterialRenderExtension->Init();
+		VdbMaterialRenderExtension->Init(DefaultRenderTarget);
 	}
 	return VdbMaterialRenderExtension;
 }
 
-FVolumeRuntimeModule::TRenderPrincipledPtr FVolumeRuntimeModule::GetRenderPrincipledMgr()
+FVolumeRuntimeModule::TRenderPrincipledPtr FVolumeRuntimeModule::GetRenderPrincipledMgr(UTextureRenderTarget2D* DefaultRenderTarget)
 {
 	static const FName ModuleName = "VolumeRuntime";
 	auto& ModuleInterface = FModuleManager::LoadModuleChecked<FVolumeRuntimeModule>(ModuleName);
-	return ModuleInterface.GetOrCreateRenderPrincipledMgr();
+	return ModuleInterface.GetOrCreateRenderPrincipledMgr(DefaultRenderTarget);
 }
 
-FVolumeRuntimeModule::TRenderPrincipledPtr FVolumeRuntimeModule::GetOrCreateRenderPrincipledMgr()
+FVolumeRuntimeModule::TRenderPrincipledPtr FVolumeRuntimeModule::GetOrCreateRenderPrincipledMgr(UTextureRenderTarget2D* DefaultRenderTarget)
 {
 	if (!VdbPrincipledRenderExtension.IsValid())
 	{
 		VdbPrincipledRenderExtension = FSceneViewExtensions::NewExtension<FVdbPrincipledRendering>();
-		VdbPrincipledRenderExtension->Init();
+		VdbPrincipledRenderExtension->Init(DefaultRenderTarget);
 	}
 	return VdbPrincipledRenderExtension;
 }

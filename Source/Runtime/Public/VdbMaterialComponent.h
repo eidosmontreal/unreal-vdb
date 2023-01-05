@@ -29,6 +29,9 @@ class UVdbMaterialComponent : public UPrimitiveComponent
 
 	virtual ~UVdbMaterialComponent();
 
+	UPROPERTY()
+	TObjectPtr<class UTextureRenderTarget2D> RenderTarget; // Must be the same for all VdbMaterialActors
+
 	//-------------------------------------------------------------------------
 
 	// Must be a Volume domain material.
