@@ -71,6 +71,7 @@ public:
 	void ResetVisibility() { VisibleViews.Empty(4); }
 	bool IsVisible(const FSceneView* View) const { return VisibleViews.Find(View) != INDEX_NONE; }
 	void Update(const FMatrix44f& InIndexToLocal, const FVector3f& InIndexMin, const FVector3f& InIndexSize, FVdbRenderBuffer* DensityBuffer, FVdbRenderBuffer* TemperatureBuffer, FVdbRenderBuffer* ColorBuffer);
+	void UpdateCurveAtlasTex();
 
 protected:
 	//~ Begin FPrimitiveSceneProxy Interface
@@ -86,6 +87,7 @@ private:
 
 	TSharedPtr<FVdbPrincipledRendering, ESPMode::ThreadSafe> VdbRenderMgr;
 	FVdbPrincipledParams Params;
+	UCurveLinearColorAtlas* CurveAtlas;
 	bool DisplayBounds;
 	bool LevelSet;
 	bool TrilinearInterpolation;

@@ -445,7 +445,7 @@ void FVdbMaterialRendering::Render_RenderThread(FPostOpaqueRenderParameters& Par
 
 							FTexture* CurveAtlas = Proxy->GetBlackbodyAtlasResource();
 							FTextureRHIRef CurveAtlasRHI = CurveAtlas ? CurveAtlas->GetTextureRHI() : nullptr;
-							ShaderElementData.BlackbodyColorSRV = CurveAtlasRHI ? TexCache.GetOrCreateSRV(CurveAtlasRHI, FRHITextureSRVCreateInfo()) : GWhiteTextureWithSRV->ShaderResourceViewRHI;
+							ShaderElementData.BlackbodyColorSRV = CurveAtlasRHI ? TexCache.GetOrCreateSRV(CurveAtlasRHI, FRHITextureSRVCreateInfo()) : GBlackTextureWithSRV->ShaderResourceViewRHI;
 
 							FVdbMeshProcessor PassMeshProcessor(
 								InView.Family->Scene->GetRenderScene(),
@@ -548,6 +548,7 @@ void FVdbMaterialRendering::PreRenderViewFamily_RenderThread(FRDGBuilder& GraphB
 	for (FVdbMaterialSceneProxy* Proxy : VdbProxies)
 	{
 		Proxy->ResetVisibility();
+		Proxy->UpdateCurveAtlasTex();
 	}
 }
 

@@ -46,12 +46,13 @@ FVdbMaterialSceneProxy::FVdbMaterialSceneProxy(const UVdbAssetComponent* AssetCo
 	IndexToLocal = PrimaryRenderInfos->GetIndexToLocal();
 
 	CurveIndex = INDEX_NONE;
-	if (!InComponent->PhysicallyBasedBlackbody && InComponent->BlackBodyCurve && InComponent->BlackBodyCurveAtlas)
+	CurveAtlas = InComponent->BlackBodyCurveAtlas;
+	if (!InComponent->PhysicallyBasedBlackbody && InComponent->BlackBodyCurve && CurveAtlas)
 	{
-		InComponent->BlackBodyCurveAtlas->GetCurveIndex(InComponent->BlackBodyCurve, CurveIndex);
+		CurveAtlas->GetCurveIndex(InComponent->BlackBodyCurve, CurveIndex);
 	}
-	CurveAtlas = InComponent->BlackBodyCurveAtlas ? InComponent->BlackBodyCurveAtlas->GetResource() : nullptr;
-	uint32 AtlasHeight = InComponent->BlackBodyCurveAtlas ? InComponent->BlackBodyCurveAtlas->TextureHeight : 0;
+	CurveAtlasTex = CurveAtlas ? CurveAtlas->GetResource() : nullptr;
+	uint32 AtlasHeight = CurveAtlas ? CurveAtlas->TextureHeight : 0;
 
 	CustomIntData0 = FIntVector4(InComponent->MaxRayDepth, InComponent->SamplesPerPixel, InComponent->ColoredTransmittance, InComponent->TemporalNoise);
 	CustomIntData1 = FIntVector4(CurveIndex, int32(AtlasHeight), 0, 0);
@@ -149,4 +150,10 @@ void FVdbMaterialSceneProxy::Update(const FMatrix44f& InIndexToLocal, const FVec
 	DensityRenderBuffer = PrimRenderBuffer;
 	TemperatureRenderBuffer = SecRenderBuffer;
 	ColorRenderBuffer = TerRenderBuffer;
+}
+
+void FVdbMaterialSceneProxy::UpdateCurveAtlasTex()
+{
+	// Doing this every frame allows realtime preview and update when modifying color curves
+	CurveAtlasTex = CurveAtlas ? CurveAtlas->GetResource() : nullptr;
 }

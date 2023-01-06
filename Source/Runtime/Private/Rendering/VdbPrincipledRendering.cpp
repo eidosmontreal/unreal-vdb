@@ -422,6 +422,7 @@ void FVdbPrincipledRendering::PreRenderViewFamily_RenderThread(FRDGBuilder& Grap
 	for (FVdbPrincipledSceneProxy* Proxy : VdbProxies)
 	{
 		Proxy->ResetVisibility();
+		Proxy->UpdateCurveAtlasTex();
 	}
 }
 

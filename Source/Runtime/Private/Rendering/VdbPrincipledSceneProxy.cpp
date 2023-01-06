@@ -20,6 +20,7 @@
 #include "VolumeRuntimeModule.h"
 #include "Rendering/VdbPrincipledRendering.h"
 #include "RenderGraphBuilder.h"
+#include "Curves/CurveLinearColorAtlas.h"
 
 #include "Algo/AnyOf.h"
 #include "RenderTargetPool.h"
@@ -55,17 +56,15 @@ FVdbPrincipledSceneProxy::FVdbPrincipledSceneProxy(const UVdbAssetComponent* Ass
 	Params.UseEnvironmentLight = InComponent->UseEnvironmentLight ? 1.0f : 0.0f;
 	
 	int32 CurveIndex = INDEX_NONE;
-	if (!InComponent->PhysicallyBasedBlackbody && InComponent->BlackBodyCurve && InComponent->BlackBodyCurveAtlas)
+	CurveAtlas = InComponent->BlackBodyCurveAtlas;
+	if (!InComponent->PhysicallyBasedBlackbody && InComponent->BlackBodyCurve && CurveAtlas)
 	{
-		InComponent->BlackBodyCurveAtlas->GetCurveIndex(InComponent->BlackBodyCurve, CurveIndex);
+		CurveAtlas->GetCurveIndex(InComponent->BlackBodyCurve, CurveIndex);
 	}
-	FTexture* CurveAtlas = InComponent->BlackBodyCurveAtlas ? InComponent->BlackBodyCurveAtlas->GetResource() : nullptr;
-	uint32 AtlasHeight = InComponent->BlackBodyCurveAtlas ? InComponent->BlackBodyCurveAtlas->TextureHeight : 0;
 	Params.Temperature = (CurveIndex == INDEX_NONE) ? InComponent->Temperature : InComponent->TemperatureMultiplier;
-
-	Params.BlackbodyCurveAtlas = CurveAtlas;
+	Params.BlackbodyCurveAtlas = CurveAtlas ? CurveAtlas->GetResource() : nullptr;;
 	Params.CurveIndex = CurveIndex;
-	Params.CurveAtlasHeight = int32(AtlasHeight);
+	Params.CurveAtlasHeight = CurveAtlas ? int32(CurveAtlas->TextureHeight) : 0;
 
 	auto FillValue = [AssetComponent](UVdbVolumeBase* Base, FVdbRenderBuffer*& Buffer)
 	{
@@ -167,4 +166,10 @@ void FVdbPrincipledSceneProxy::Update(const FMatrix44f& InIndexToLocal, const FV
 	Params.IndexToLocal = InIndexToLocal;
 	Params.VdbTemperature = TemperatureBuffer;
 	Params.VdbColor = ColorBuffer;
+}
+
+void FVdbPrincipledSceneProxy::UpdateCurveAtlasTex()
+{
+	// Doing this every frame allows realtime preview and update when modifying color curves
+	Params.BlackbodyCurveAtlas = CurveAtlas ? CurveAtlas->GetResource() : nullptr;
 }

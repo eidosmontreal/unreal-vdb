@@ -41,7 +41,7 @@ public:
 	const FVdbRenderBuffer* GetDensityRenderResource() const { return DensityRenderBuffer; }
 	const FVdbRenderBuffer* GetTemperatureRenderResource() const { return TemperatureRenderBuffer; }
 	const FVdbRenderBuffer* GetColorRenderResource() const { return ColorRenderBuffer; }
-	FTexture* GetBlackbodyAtlasResource() const { return (CurveIndex != INDEX_NONE) ? CurveAtlas : nullptr; }
+	FTexture* GetBlackbodyAtlasResource() const { return (CurveIndex != INDEX_NONE) ? CurveAtlasTex : nullptr; }
 	
 	bool IsLevelSet() const { return LevelSet; }
 	bool IsTranslucentLevelSet() const { return LevelSet && TranslucentLevelSet; }
@@ -51,6 +51,7 @@ public:
 	void ResetVisibility() { VisibleViews.Empty(4); }
 	bool IsVisible(const FSceneView* View) const { return VisibleViews.Find(View) != INDEX_NONE; }
 	void Update(const FMatrix44f& IndexToLocal, const FVector3f& IndexMin, const FVector3f& IndexSize, FVdbRenderBuffer* DensityRenderBuffer, FVdbRenderBuffer* TemperatureRenderBuffer, FVdbRenderBuffer* ColorRenderBuffer);
+	void UpdateCurveAtlasTex();
 
 protected:
 	//~ Begin FPrimitiveSceneProxy Interface
@@ -81,7 +82,8 @@ private:
 	FVector4f CustomFloatData2;
 
 	int32 CurveIndex;
-	FTexture* CurveAtlas;
+	UCurveLinearColorAtlas* CurveAtlas;
+	FTexture* CurveAtlasTex = nullptr;
 
 	FVdbRenderBuffer* DensityRenderBuffer;
 	FVdbRenderBuffer* TemperatureRenderBuffer;
