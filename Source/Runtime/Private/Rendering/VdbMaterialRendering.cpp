@@ -560,9 +560,10 @@ void FVdbMaterialRendering::BeginRenderViewFamily(FSceneViewFamily& InViewFamily
 		if (const FRenderTarget* RefRenderTarget = InViewFamily.RenderTarget)
 		{
 			const FSceneTexturesConfig& Config = FSceneTexturesConfig::Get();
-			if (Config.Extent.X != DefaultVdbRenderTarget->SizeX ||
+			if ((Config.Extent.X != DefaultVdbRenderTarget->SizeX ||
 				Config.Extent.Y != DefaultVdbRenderTarget->SizeY ||
-				DefaultVdbRenderTarget->RenderTargetFormat != RTF_RGBA16f)
+				DefaultVdbRenderTarget->RenderTargetFormat != RTF_RGBA16f) &&
+				(Config.Extent.X > 0 && Config.Extent.Y > 0))
 			{
 				DefaultVdbRenderTarget->ClearColor = FLinearColor::Transparent;
 				DefaultVdbRenderTarget->InitCustomFormat(Config.Extent.X, Config.Extent.Y, PF_FloatRGBA, true);
