@@ -83,8 +83,9 @@ Some people like using Unreal's Volumetric Clouds system to render VDBs (check t
 
 #### Can I only render VDBs using the Movie Render Queue (MRQ) ?
 
-You can use the *r.Vdb.DebugMode* console variable (default value is 0) to render only VDBs radiance/rgb (*r.Vdb.DebugMode 1*) or VDBs alpha (*r.Vdb.DebugMode 2*). 
-You can setup your Movie Render Queue options to add this console variable. I haven't implemented custom render passes or any other Unreal equivalents. 
+The plugin comes with two post-processing materials *MovieRenderQueue_VdbColor* and *MovieRenderQueue_VdbAlpha* that can be used as custom render passes with the Movie Render Queue (MRQ). 
+
+For quick display checks / debug I recommend using the *r.Vdb.DebugMode* console variable (default value is 0) to render only VDBs radiance/rgb (*r.Vdb.DebugMode 1*) or VDBs alpha (*r.Vdb.DebugMode 2*).
 
 
 #### What is the difference between VdbMaterial and VdbPrincipled ?
@@ -109,6 +110,9 @@ When introducing displacement your volume might over-extend its boundaries. Use 
 #### Using command line for global improved rendering
 When using Movie Render Queue (MRQ), use lighter VDBs parameters for faster rendering in the viewport and use console variables to improve offline rendering quality during MRQ renders.
 * r.Vdb.Trilinear false/true
-* r.Vdb.CinematicQuality 0/1/2. 0 is default, if 1 all step sizes are multiplied by 4 and samples per pixel by 2, if 2 all step sizes are multiplied by 10, samples by 4 and trilinear sampling is forced on all volumes.
+* r.Vdb.CinematicQuality 0/1/2. 
+    * if 0 (default), no changes 
+    * if 1, all step sizes are multiplied by 4 and samples per pixel by 2, 
+    * if 2, all step sizes are multiplied by 10, samples by 4 and trilinear sampling is forced on all volumes.
 
 
