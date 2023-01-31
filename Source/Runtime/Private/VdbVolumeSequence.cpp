@@ -65,7 +65,7 @@ float UVdbVolumeSequence::GetFrameIndexFloatFromTime(float InputAnimTime) const
 uint32 UVdbVolumeSequence::GetFrameIndexFromTime(float InputAnimTime) const
 {
 	const float FrameIndexFloat = GetFrameIndexFloatFromTime(InputAnimTime);
-	const uint32 FrameIndexU32 = uint32(floorf(FrameIndexFloat));
+	const uint32 FrameIndexU32 = uint32(FMath::RoundToInt32(FrameIndexFloat));
 	return FrameIndexU32;
 }
 
