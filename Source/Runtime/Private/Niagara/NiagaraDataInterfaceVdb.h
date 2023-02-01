@@ -24,13 +24,13 @@ struct FVdbRay
 	GENERATED_USTRUCT_BODY();
 
 	UPROPERTY(EditAnywhere, Category = "Ray")
-	FVector3f Origin;
+	FVector3f Origin = FVector3f::Zero();
 
 	UPROPERTY(EditAnywhere, Category = "Ray")
 	float Tmin = 0.0001;
 
 	UPROPERTY(EditAnywhere, Category = "Ray")
-	FVector3f Direction;
+	FVector3f Direction = FVector3f::UnitX();
 
 	UPROPERTY(EditAnywhere, Category = "Ray")
 	float Tmax = FLT_MAX;
@@ -42,15 +42,15 @@ struct FVdbLevelSetHit
 	GENERATED_USTRUCT_BODY();
 
 	UPROPERTY(EditAnywhere, Category = "LevelSetHit")
-	float t;
+	float t = 0.f;
 	UPROPERTY(EditAnywhere, Category = "LevelSetHit")
-	float v0;
+	float v0 = 0.f;
 	UPROPERTY(EditAnywhere, Category = "LevelSetHit")
-	int i;
+	int i = 0;
 	UPROPERTY(EditAnywhere, Category = "LevelSetHit")
-	int j;
+	int j = 0;
 	UPROPERTY(EditAnywhere, Category = "LevelSetHit")
-	int k;
+	int k = 0;
 };
 
 UCLASS(EditInlineNew, Category = "SparseVolumetrics", meta = (DisplayName = "Volume VDB"))

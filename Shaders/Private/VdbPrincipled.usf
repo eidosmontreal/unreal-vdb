@@ -224,7 +224,7 @@ float4 RaymarchVolume(
 		{
 			// Sample user defined color curve
 			float2 uv = float2(Temperature, (VdbPrincipledParams.CurveIndex + 0.5) / float(VdbPrincipledParams.CurveAtlasHeight));
-			TemperatureColor = VdbPrincipledParams.BlackbodyCurveAtlas.Sample(VdbPrincipledParams.LinearTexSampler, uv).rgb;
+			TemperatureColor = VdbPrincipledParams.BlackbodyCurveAtlas.SampleLevel(VdbPrincipledParams.LinearTexSampler, uv, 0).rgb;
 		}
 		else
 		{
