@@ -92,7 +92,7 @@ public:
 		if (Material && Material->GetMaterialDomain() == MD_Volume && Material->GetRenderingThreadShaderMap())
 		{
 			const ERasterizerFillMode MeshFillMode = FM_Solid;
-			const ERasterizerCullMode MeshCullMode = CM_CCW;
+			const ERasterizerCullMode MeshCullMode = MeshBatch.ReverseCulling ? CM_CW : CM_CCW;
 
 			#define PROCESS_SHADER(shader) { Process<FVdbShaderVS, ##shader>(MeshBatch, BatchElementMask, PrimitiveSceneProxy, *MaterialRenderProxy, *Material, StaticMeshId, MeshFillMode, MeshCullMode); }
 
