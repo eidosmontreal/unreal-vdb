@@ -87,6 +87,7 @@ UVdbImportFactory::UVdbImportFactory(const FObjectInitializer& ObjectInitializer
 	bEditAfterNew = false;
 	bEditorImport = true;
 	bText = false;
+	ImportPriority = DefaultImportPriority + 1;
 
 	SupportedClass = nullptr;	// UVdbImportFactory supports both volume and sequence
 

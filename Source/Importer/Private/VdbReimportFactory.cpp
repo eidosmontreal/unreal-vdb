@@ -25,6 +25,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogVdbReimport, Log, All);
 UVdbReimportFactory::UVdbReimportFactory(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
+	ImportPriority = DefaultImportPriority - 1;
 }
 
 bool UVdbReimportFactory::CanReimport(UObject* Obj, TArray<FString>& OutFilenames)
