@@ -37,6 +37,8 @@ FVdbPrincipledSceneProxy::FVdbPrincipledSceneProxy(const UVdbAssetComponent* Ass
 	Params.IndexMin = RenderInfosDensity->GetIndexMin();
 	Params.IndexSize = RenderInfosDensity->GetIndexSize();
 	Params.IndexToLocal = RenderInfosDensity->GetIndexToLocal();
+	IndexToLocalDeterminantNegative = Params.IndexToLocal.Determinant() < 0.0f;
+
 	Params.MaxRayDepth = InComponent->MaxRayDepth;
 	Params.SamplesPerPixel = InComponent->SamplesPerPixel;
 	Params.StepSize = InComponent->StepSize;

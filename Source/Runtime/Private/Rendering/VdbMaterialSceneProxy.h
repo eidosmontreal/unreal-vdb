@@ -46,6 +46,7 @@ public:
 	bool IsLevelSet() const { return LevelSet; }
 	bool IsTranslucentLevelSet() const { return LevelSet && TranslucentLevelSet; }
 	bool IsTranslucent() const { return !LevelSet || TranslucentLevelSet; }
+	bool IsIndexToLocalDeterminantNegative() const { return IndexToLocalDeterminantNegative; }
 	bool UseImprovedSkylight() const { return ImprovedSkylight; }
 	bool UseTrilinearSampling() const { return TrilinearSampling; }
 	void ResetVisibility() { VisibleViews.Empty(4); }
@@ -74,6 +75,7 @@ private:
 	bool TranslucentLevelSet;
 	bool ImprovedSkylight;
 	bool TrilinearSampling;
+	bool IndexToLocalDeterminantNegative;
 
 	FIntVector4 CustomIntData0;
 	FIntVector4 CustomIntData1;

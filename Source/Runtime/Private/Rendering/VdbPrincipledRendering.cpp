@@ -348,7 +348,9 @@ void FVdbPrincipledRendering::Render_RenderThread(FPostOpaqueRenderParameters& P
 					FGraphicsPipelineStateInitializer GraphicsPSOInit;
 					RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
 					GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_Zero, BO_Add, BF_One, BF_Zero>::GetRHI();
-					GraphicsPSOInit.RasterizerState = GetStaticRasterizerState<true>(FM_Solid, Proxy->IsLocalToWorldDeterminantNegative() ? CM_CW : CM_CCW);
+
+					bool NegativeDeterminant = Proxy->IsLocalToWorldDeterminantNegative() ^ Proxy->IsIndexToLocalDeterminantNegative();
+					GraphicsPSOInit.RasterizerState = GetStaticRasterizerState<true>(FM_Solid, NegativeDeterminant ? CM_CW : CM_CCW);
 					GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Less>::GetRHI();
 					GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
 					GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();

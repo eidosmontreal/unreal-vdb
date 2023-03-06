@@ -348,7 +348,7 @@ void FVdbMaterialRendering::CreateMeshBatch(FMeshBatch& MeshBatch, const FVdbMat
 	MeshBatch.bUseWireframeSelectionColoring = PrimitiveProxy->IsSelected();
 	MeshBatch.VertexFactory = VertexFactory.Get();
 	MeshBatch.MaterialRenderProxy = MaterialProxy;
-	MeshBatch.ReverseCulling = PrimitiveProxy->IsLocalToWorldDeterminantNegative();
+	MeshBatch.ReverseCulling = PrimitiveProxy->IsLocalToWorldDeterminantNegative() ^ PrimitiveProxy->IsIndexToLocalDeterminantNegative();
 	MeshBatch.Type = PT_TriangleList;
 	MeshBatch.DepthPriorityGroup = SDPG_World;
 	MeshBatch.bCanApplyViewModeOverrides = true;

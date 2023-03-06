@@ -65,6 +65,7 @@ public:
 	bool GetDisplayBounds() const { return DisplayBounds; }
 	bool UseTrilinearInterpolation() const { return TrilinearInterpolation; }
 	bool IsLevelSet() const { return LevelSet; }
+	bool IsIndexToLocalDeterminantNegative() const { return IndexToLocalDeterminantNegative; }
 
 	FRDGTextureRef GetOrCreateRenderTarget(FRDGBuilder& GraphBuilder, const FIntPoint& RtSize, bool EvenFrame);
 
@@ -91,6 +92,7 @@ private:
 	bool DisplayBounds;
 	bool LevelSet;
 	bool TrilinearInterpolation;
+	bool IndexToLocalDeterminantNegative;
 
 	// RTs per proxy, for easier translucency support
 	TRefCountPtr<IPooledRenderTarget> OffscreenRenderTarget[2];

@@ -44,6 +44,7 @@ FVdbMaterialSceneProxy::FVdbMaterialSceneProxy(const UVdbAssetComponent* AssetCo
 	IndexMin = PrimaryRenderInfos->GetIndexMin();
 	IndexSize = PrimaryRenderInfos->GetIndexSize();
 	IndexToLocal = PrimaryRenderInfos->GetIndexToLocal();
+	IndexToLocalDeterminantNegative = IndexToLocal.Determinant() < 0.0f;
 
 	CurveIndex = INDEX_NONE;
 	CurveAtlas = InComponent->BlackBodyCurveAtlas;
