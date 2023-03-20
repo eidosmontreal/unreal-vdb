@@ -140,15 +140,9 @@ float4 RaymarchFogVolume(
 		Density = UpdateDensity(Density, DENSITY_MULT, DensityModifications);
 		if (Density == 0.0) continue; 
 
-		// Compute scattering and absorption coefficients
+		// Compute scattering coefficients
 		float3 Extinction = SigmaT * Density;
 		float3 Scattering = Extinction * ALBEDO; // aka SigmaS * Density
-#if MATERIAL_SHADINGMODEL_UNLIT
-		// ignore scattering with unlit shader
-		float3 Absorption = Extinction;
-#else
-		float3 Absorption = Extinction - Scattering; // aka SigmaA * Density
-#endif
 
 		// ------------------------------------------------------------------------
 		// Update total Radiance with all incoming ligth sources
@@ -236,11 +230,11 @@ float4 RaymarchFogVolume(
 			TemperatureColor = ColorTemperatureToRGB(Temperature);
 		}
 
-		StepRadiance += StepTransmittance * Absorption * TemperatureColor * BLACKBODY_INTENSITY;
+		StepRadiance += StepTransmittance * TemperatureColor * BLACKBODY_INTENSITY;
 #endif
 
         // Regular emissive
-		StepRadiance += StepTransmittance * Absorption * EmissiveColor;
+		StepRadiance += StepTransmittance * EmissiveColor;
 
 		Radiance += StepRadiance;
 

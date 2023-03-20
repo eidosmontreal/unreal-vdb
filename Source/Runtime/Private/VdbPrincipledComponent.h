@@ -87,9 +87,9 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (ClampMin = "0.00001", UIMin = "0.00001"))
 	float DensityMultiplier = 10.0;
 
-	// Describes the probability of scattering (versus absorption) at a scattering event. Between 0 and 1.
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (UIMin = "0.0", UIMax = "1.0", ClampMin = "0.0", ClampMax = "1.0"))
-	float Albedo = 0.8;
+	// Scattering multiplier
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "5.0"))
+	float Albedo = 1.0;
 
 	// Ambient contribution to be added to light scattering, usually needed to cheaply boost volume radiance
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader", meta = (UIMin = "0.0"))

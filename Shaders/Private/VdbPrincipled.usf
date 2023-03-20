@@ -164,7 +164,6 @@ float4 RaymarchVolume(
 		float3 SigmaT = VdbPrincipledParams.Color.rgb; // Extinction
 		float3 Extinction = SigmaT * Density;
 		float3 Scattering = Extinction * Medium.albedo;
-		float3 Absorption = Extinction - Scattering;
 
 #ifdef ANALYTIC_INTEGRATION
 		Extinction = max(Extinction, 0.00000001);
@@ -233,11 +232,11 @@ float4 RaymarchVolume(
 			TemperatureColor = ColorTemperatureToRGB(Temperature);
 		}
 
-		StepRadiance += StepTransmittance * Absorption * TemperatureColor * VdbPrincipledParams.BlackbodyTint * VdbPrincipledParams.BlackbodyIntensity;
+		StepRadiance += StepTransmittance * TemperatureColor * VdbPrincipledParams.BlackbodyTint * VdbPrincipledParams.BlackbodyIntensity;
 #endif
 
 		// Regular emissive
-		StepRadiance += StepTransmittance * Absorption * VdbPrincipledParams.EmissionStrength * VdbPrincipledParams.EmissionColor;
+		StepRadiance += StepTransmittance * VdbPrincipledParams.EmissionStrength * VdbPrincipledParams.EmissionColor;
 
 		Radiance += StepRadiance;
 
