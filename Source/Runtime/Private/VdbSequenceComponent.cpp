@@ -37,14 +37,14 @@ static TAutoConsoleVariable<int32> CVar_VdbSeq_NbFramesBehindToCache
 static TAutoConsoleVariable<int32> CVar_VdbSeq_NbFramesAheadToCache
 (
 	TEXT("VdbSequence.NbFramesAheadToCache"),
-	3,
+	10,
 	TEXT("The number of old frames to cache ahead of the current frame"),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 static TAutoConsoleVariable<int32> CVar_VdbSeq_NbFramesToCacheBeforeStartingAnimation
 (
 	TEXT("VdbSequence.NbFramesToCacheBeforeStartingAnimation"),
-	2,
+	10,
 	TEXT("The number of frames to cache before an animation can be started"),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
