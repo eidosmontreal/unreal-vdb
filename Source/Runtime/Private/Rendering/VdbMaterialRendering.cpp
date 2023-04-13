@@ -27,6 +27,7 @@
 #include "Modules\ModuleManager.h"
 #include "SceneView.h"
 #include "ScenePrivate.h"
+#include "Engine/TextureRenderTarget2D.h"
 
 DEFINE_LOG_CATEGORY(LogSparseVolumetrics);
 
