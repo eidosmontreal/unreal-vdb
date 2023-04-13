@@ -81,7 +81,7 @@ class UVdbMaterialComponent : public UPrimitiveComponent
 
 	// Density multiplier of the volume, modulating VdbPrincipal values 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Shading", meta = (ClampMin = "0.0", UIMin = "0.0"))
-	float DensityMultiplier = 10.0;
+	float DensityMultiplier = 100.0;
 
 	// Describes the probability of scattering (versus absorption) at a scattering event. Between 0 and 1.	// Scattering multiplier
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Shading", meta = (ClampMin = "0.0", UIMin = "0.0", UIMax = "5.0"))
