@@ -17,6 +17,8 @@
 #include "VdbCommon.h"
 #include "MeshMaterialShader.h"
 #include "InstanceCulling/InstanceCullingMergedContext.h"
+#include "MaterialDomain.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 THIRD_PARTY_INCLUDES_START
 #include <nanovdb/NanoVDB.h>

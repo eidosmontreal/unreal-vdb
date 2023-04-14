@@ -27,6 +27,7 @@
 #include "ScenePrivate.h"
 #include "RenderGraphUtils.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "TextureResource.h"
 
 TAutoConsoleVariable<int32> CVarPathTracingMaxSamplesPerPixel(
 	TEXT("r.VdbPrincipled.MaxSamplesPerPixel"),

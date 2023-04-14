@@ -17,6 +17,7 @@
 #include "Misc/ScopeLock.h"
 
 #include "VolumeStreamingManager.h"
+#include "RenderingThread.h"
 
 FStreamingVolumeData::FStreamingVolumeData(IInterface_StreamableVolumetricAsset* InputVolumeAsset)
 	: VolumeAsset(InputVolumeAsset)

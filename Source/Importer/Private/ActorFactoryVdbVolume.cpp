@@ -13,7 +13,6 @@
 // limitations under the License.
 
 #include "ActorFactoryVdbVolume.h"
-#include "AssetData.h"
 
 #include "VdbMaterialActor.h"
 #include "VdbAssetComponent.h"

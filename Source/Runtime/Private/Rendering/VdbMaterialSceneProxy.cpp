@@ -25,6 +25,7 @@
 #include "Materials/Material.h"
 #include "Algo/AnyOf.h"
 #include "Curves/CurveLinearColorAtlas.h"
+#include "TextureResource.h"
 
 FVdbMaterialSceneProxy::FVdbMaterialSceneProxy(const UVdbAssetComponent* AssetComponent, const UVdbMaterialComponent* InComponent)
 	: FPrimitiveSceneProxy(InComponent)

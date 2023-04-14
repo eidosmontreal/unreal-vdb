@@ -21,6 +21,7 @@
 #include "ShaderParameters.h"
 #include "SceneView.h"
 #include "ShaderParameterStruct.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 // FogVolumes Vdb Denoiser (right now, it is just a simple blur proof of concept)
 class FDenoiseCS : public FGlobalShader

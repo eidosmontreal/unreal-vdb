@@ -21,6 +21,7 @@
 #include "Rendering/VdbPrincipledRendering.h"
 #include "RenderGraphBuilder.h"
 #include "Curves/CurveLinearColorAtlas.h"
+#include "TextureResource.h"
 
 #include "Algo/AnyOf.h"
 #include "RenderTargetPool.h"
