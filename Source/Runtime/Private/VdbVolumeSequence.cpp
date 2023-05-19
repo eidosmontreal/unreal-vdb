@@ -286,17 +286,25 @@ void UVdbVolumeSequence::OnChunkAvailable(uint32 ChunkId)
 		return;
 	}
 
-	FBufferReader Ar((void*)ChunkMemory, ChunkSize, /*bInFreeOnClose=*/ false, /*bIsPersistent=*/ true);	
-	FVolumeRenderInfos& VolRenderInfos = VolumeRenderInfos[FrameIdx];
-	nanovdb::GridHandle<nanovdb::HostBuffer>& GridHandle = VolRenderInfos.GetNanoGridHandle();
-	Ar << GridHandle;
+	if (!VolumeRenderInfos.IsEmpty())
+	{
+		FBufferReader Ar((void*)ChunkMemory, ChunkSize, /*bInFreeOnClose=*/ false, /*bIsPersistent=*/ true);	
+		FVolumeRenderInfos& VolRenderInfos = VolumeRenderInfos[FrameIdx];
+		nanovdb::GridHandle<nanovdb::HostBuffer>& GridHandle = VolRenderInfos.GetNanoGridHandle();
+		Ar << GridHandle;
 
-	ChunksWithPendingUpload.AddUnique(ChunkId);
-	FVolumeFrameInfos& VolInfos = VolumeFramesInfos[FrameIdx];
+		ChunksWithPendingUpload.AddUnique(ChunkId);
+		FVolumeFrameInfos& VolInfos = VolumeFramesInfos[FrameIdx];
 
-	TRefCountPtr<FVdbRenderBuffer> PooledBuffer = BufferPool->GetBuffer();
-	PooledBuffer->UploadData(VolInfos.GetMemoryUsage(), VolRenderInfos.GetNanoGridHandle().data());
-	VolRenderInfos.Update(VolInfos.GetIndexToLocal(), VolInfos.GetIndexMin(), VolInfos.GetIndexMax(), PooledBuffer);
+		TRefCountPtr<FVdbRenderBuffer> PooledBuffer = BufferPool->GetBuffer();
+		PooledBuffer->UploadData(VolInfos.GetMemoryUsage(), VolRenderInfos.GetNanoGridHandle().data());
+		VolRenderInfos.Update(VolInfos.GetIndexToLocal(), VolInfos.GetIndexMin(), VolInfos.GetIndexMax(), PooledBuffer);
+	}
+	else
+	{
+		// invalid VolumeSequence, unmap chunk for safe deletion
+		IVolumeStreamingManager::Get().UnmapChunk(this, ChunkId);
+	}
 }
 
 void UVdbVolumeSequence::CopyChunkContentToMemory(uint32 ChunkId, void* ResidentChunkMemory)
