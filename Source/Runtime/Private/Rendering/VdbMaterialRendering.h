@@ -69,8 +69,8 @@ private:
 	FPostOpaqueRenderDelegate RenderDelegate;
 	FDelegateHandle RenderDelegateHandle;
 
-	UTextureRenderTarget2D* DefaultVdbRenderTarget;
-	FTexture* DefaultVdbRenderTargetTex;
+	UTextureRenderTarget2D* DefaultVdbRenderTarget = nullptr;
+	FTexture* DefaultVdbRenderTargetTex = nullptr;
 
 	EVdbDenoiserMethod DenoiserMethod = EVdbDenoiserMethod::None;
 };
