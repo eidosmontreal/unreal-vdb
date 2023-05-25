@@ -62,8 +62,8 @@ too big and expensive to render properly in real-time or interactive time.
 #### My volumes are too noisy. What can I do ?
 
 Having realtime performance comes with a few sacrifices and approximations. Rendering with noise gives better 
-results but requires a good denoiser. Unreal temporal anti-aliasing works well but VDBs do not (cannot) write motion 
-vectors making TAA irrelevant with VDBs sequences or camera motion. There are options to turn off noise completely 
+results but requires a good denoiser. Unreal temporal anti-aliasing works well but VDBs do not write motion 
+vectors yet making TAA irrelevant with VDBs sequences or camera motion. There are options to turn off noise completely 
 but it will introduce other artefacts.
 
 #### Can you do the same in Unity ?
@@ -80,6 +80,12 @@ No. I'm working on this plugin on my spare time only and don't have time (and mo
 
 I'm well aware of transparency issues with translucent objects (including hair strands) and I don't have a solution for it as I'm limited by plugin capabilities.
 Some people like using Unreal's Volumetric Clouds system to render VDBs (check the example levels in the Release packages) and it solves some of these issues when using the right options (tip: check "Apply Cloud Fogging" on your translucent materials), but you will loose my core VDB rendering features. Epic should release their own version of VDB rendering soon that there's no other choice than to wait for their release.
+
+### I exported my VDB sequence at 24fps but it looks like the plugin is forcing 30fps. Can i fix that ?
+
+For now the plugin forces all imports at 30fps. To get back to 24fps you will need to slow down the sequence play rate by a factor of 24/30 = 0.8.
+* You can change the realtime in-game sequence framerate using the "Playback speed" option in the VDB details panel. 
+* If you're using the sequencer, right click on the sequence and change the "Play Rate" option.
 
 #### Can I only render VDBs using the Movie Render Queue (MRQ) ?
 
