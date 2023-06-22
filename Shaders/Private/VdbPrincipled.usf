@@ -112,6 +112,8 @@ float4 RaymarchVolume(
 
 	// Transform light world direction to index space
 	float3 LightDir = WorldToIndexDirection(View.DirectionalLightDirection, VdbPrincipledParams.WorldToLocal, DensitySampler.GridBuffer, DensitySampler.Grid); // Index space
+	if (all(View.DirectionalLightDirection == 0.0))
+		LightDir = float3(1.0, 0.0, 0.0);
 	float3 LightCol = View.DirectionalLightColor.xyz;
 	float CosThetaPhase = dot(LightDir, Ray.Direction);
 

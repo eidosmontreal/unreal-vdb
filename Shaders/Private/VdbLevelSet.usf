@@ -74,6 +74,8 @@ float4 RaymarchLevelSet(
 
 #if !MATERIAL_SHADINGMODEL_UNLIT
 	float3 LightDir = WorldToIndexDirection(View.DirectionalLightDirection, WorldToLocal, VdbSampler.GridBuffer, VdbSampler.Grid); // Index space
+	if (all(View.DirectionalLightDirection == 0.0))
+		LightDir = float3(1.0, 0.0, 0.0);
 	float3 LightCol = View.DirectionalLightColor.rgb;
 	float CosThetaPhase = dot(LightDir, Ray.Direction);
 
