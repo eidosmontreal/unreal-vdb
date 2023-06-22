@@ -113,7 +113,7 @@ class UVdbPrincipledComponent : public UPrimitiveComponent
 
 	// Blackbody emission for fire. Set to 1 for physically accurate intensity.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader|Blackbody", meta = (ClampMin = "0.0", UIMin = "0.0"))
-	float BlackbodyIntensity = 1.0;
+	float BlackbodyIntensity = 10.0;
 
 	// Color tint for blackbody emission.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Volume|Principled Shader|Blackbody")
