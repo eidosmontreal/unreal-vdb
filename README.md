@@ -5,6 +5,10 @@
 This repo is a non-official Unreal plugin that can read OpenVDB and NanoVDB files in Unreal.
 This plugin was made for Unreal 5 on Windows 64 bit.
 
+## Update
+
+_As of June 2023, this project is archived and will not be updated anymore._
+
 ## Introduction
 
 This experimental plugin allows importing [OpenVDB](https://www.openvdb.org/) and 
