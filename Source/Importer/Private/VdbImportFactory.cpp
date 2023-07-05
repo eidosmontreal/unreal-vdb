@@ -196,6 +196,8 @@ UObject* UVdbImportFactory::FactoryCreateFile(UClass* InClass, UObject* InParent
 				// Parse sequence for each grid
 				if (GridInfo->ShouldImport)
 				{
+					bool bCancelImport = false;
+
 					TArray<uint8> StreamedDataTempBytes;
 
 					FString SequenceName = InName.ToString();
@@ -267,13 +269,19 @@ UObject* UVdbImportFactory::FactoryCreateFile(UClass* InClass, UObject* InParent
 						}
 						else
 						{
-							UE_LOG(LogVdbImporter, Warning, TEXT("Sequence frame %d has an invalid VDB grid. This will not stop import, but the result sequence will be incomplete."), FrameNumber);
+							UE_LOG(LogVdbImporter, Error, TEXT("VDB grid '%s' is invalid at frame %d. This will not stop file import, but grid '%s' will not be imported."), *GridInfo->GridName.ToString(), FrameNumber, *GridInfo->GridName.ToString());
+							bCancelImport = true;
+							VolumeSequence->MarkPendingKill();
+							break;
 						}
 
 					}
 
-					VolumeSequence->FinalizeImport(Filename);
-					ResultAssets.Add(VolumeSequence);
+					if (!bCancelImport)
+					{
+						VolumeSequence->FinalizeImport(Filename);
+						ResultAssets.Add(VolumeSequence);
+					}
 				}
 			}
 		}
