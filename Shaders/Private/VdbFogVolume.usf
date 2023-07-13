@@ -118,7 +118,7 @@ float4 RaymarchFogVolume(
 
 	FPixelMaterialInputs PixelMaterialInputs = (FPixelMaterialInputs)0;
 
-	for (uint iStep = 0; iStep < NumSteps; ++iStep)
+	[loop] for (uint iStep = 0; iStep < NumSteps; ++iStep)
 	{
 		float s = Ray.TMin + (iStep + lerp(0.5, RandomSequence_GenerateSample1D(RandSequence), JITTER_MULT)) * StepSize;
 		pnanovdb_vec3_t iPos = pnanovdb_hdda_ray_start(Ray.Origin, s, Ray.Direction);
@@ -297,7 +297,7 @@ void MainPS(in INPUT_POSITION_QUALIFIERS float4 SvPosition : SV_Position,
 	// ------------------------------------------------------------------------
 	// Trace rays and accumulate
 	
-	for (uint SampleIndex = 0; SampleIndex < SAMPLES_PER_PIXEL; ++SampleIndex)
+	[loop] for (uint SampleIndex = 0; SampleIndex < SAMPLES_PER_PIXEL; ++SampleIndex)
 	{
 		RandomSequence RandSequence;
 		float2 Jitter = 0.0;
